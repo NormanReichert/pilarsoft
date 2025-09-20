@@ -7,6 +7,9 @@ import {
   defaultInputs,
   type Inputs,
   type Outputs,
+  type Travamento,
+  dividirPilarEmSegmentos,
+  calcularComprimentoFlambagem,
   resolverKappaMsd_x,
   resolverKappaMsd_y,
 } from "./compute";
@@ -398,9 +401,9 @@ function DiagramMomento({
 
 /* ===================== CAMPOS / GRUPOS ===================== */
 const fieldDefs: Array<{ key: keyof Inputs; label: string; unit?: string; min?: number; step?: number }> = [
-  { key: "a", label: "a", unit: "cm", min: 1 },
-  { key: "b", label: "b", unit: "cm", min: 1 },
-  { key: "h", label: "h", unit: "cm", min: 1 },
+  { key: "a", label: "a", unit: "cm", min: 1, step: 1},
+  { key: "b", label: "b", unit: "cm", min: 1, step: 1},
+  { key: "h", label: "h", unit: "cm", min: 1, step: 1},
   { key: "gama_c", label: "gama-c", min: 1, step: 0.01 },
   { key: "gama_s", label: "gama-s", min: 1, step: 0.01 },
   { key: "gama_f", label: "gama-f", min: 1, step: 0.01 },
@@ -419,6 +422,407 @@ const groups: Record<"geometria" | "coef" | "materiais" | "esforcos", Array<keyo
   materiais: ["fck", "fyk"],
   esforcos: ["Nsk", "Msk_tx", "Msk_bx", "Msk_ty", "Msk_by"],
 };
+
+/* ===================== COMPONENTE DE TRAVAMENTOS ===================== */
+function TravamentosManager({
+  travamentos,
+  onTravamentosChange,
+  alturaTotal,
+}: {
+  travamentos: Travamento[];
+  onTravamentosChange: (travamentos: Travamento[]) => void;
+  alturaTotal: number;
+}) {
+  const adicionarTravamento = (direcao: 'x' | 'y') => {
+    const novoTravamento: Travamento = {
+      id: `trav_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      coordenada: alturaTotal / 2, // posição padrão no meio
+      compressao: 0, // valor padrão
+      momento: 0, // valor padrão
+      direcao,
+    };
+    onTravamentosChange([...travamentos, novoTravamento]);
+  };
+
+  const removerTravamento = (id: string) => {
+    onTravamentosChange(travamentos.filter(t => t.id !== id));
+  };
+
+  const atualizarTravamento = (id: string, campo: keyof Travamento, valor: any) => {
+    onTravamentosChange(
+      travamentos.map(t => {
+        if (t.id === id) {
+          if (campo === 'coordenada') {
+            return { ...t, [campo]: Math.max(0, Math.min(alturaTotal, Number(valor))) };
+          }
+          return { ...t, [campo]: valor };
+        }
+        return t;
+      })
+    );
+  };
+
+  const travamentosX = travamentos.filter(t => t.direcao === 'x');
+  const travamentosY = travamentos.filter(t => t.direcao === 'y');
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Botões para adicionar */}
+      <div style={{ display: 'flex', gap: 12 }}>
+        <button
+          onClick={() => adicionarTravamento('x')}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#2563eb',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 14,
+          }}
+        >
+          + Travamento X
+        </button>
+        <button
+          onClick={() => adicionarTravamento('y')}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#dc2626',
+            color: 'white',
+            border: 'none',
+            borderRadius: 6,
+            cursor: 'pointer',
+            fontSize: 14,
+          }}
+        >
+          + Travamento Y
+        </button>
+      </div>
+
+      {/* Lista de travamentos */}
+      {(travamentosX.length > 0 || travamentosY.length > 0) && (
+        <div style={{ display: 'flex', gap: 40 }}>
+          {/* Travamentos X */}
+          {travamentosX.length > 0 && (
+            <div>
+              <h4 style={{ 
+                fontSize: 14, 
+                fontWeight: 600, 
+                margin: '0 0 8px', 
+                color: '#2563eb' 
+              }}>
+                Direção X
+              </h4>
+              {travamentosX.map(travamento => (
+                <div key={travamento.id} style={{ 
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr 1fr auto',
+                  alignItems: 'center',
+                  gap: 8, 
+                  marginBottom: 8,
+                  padding: '8px',
+                  background: '#1e293b',
+                  borderRadius: 6,
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Coordenada (cm)</span>
+                    <input
+                      type="number"
+                      value={travamento.coordenada}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'coordenada', Number(e.target.value))}
+                      min={0}
+                      max={alturaTotal}
+                      step={1}
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        border: '1px solid #475569',
+                        borderRadius: 4,
+                        background: '#0b1220',
+                        color: THEME.pageText,
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Compressão (kN)</span>
+                    <input
+                      type="number"
+                      value={travamento.compressao}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'compressao', Number(e.target.value))}
+                      step={0.1}
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        border: '1px solid #475569',
+                        borderRadius: 4,
+                        background: '#0b1220',
+                        color: THEME.pageText,
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento (kN·m)</span>
+                    <input
+                      type="number"
+                      value={travamento.momento}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'momento', Number(e.target.value))}
+                      step={0.1}
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        border: '1px solid #475569',
+                        borderRadius: 4,
+                        background: '#0b1220',
+                        color: THEME.pageText,
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => removerTravamento(travamento.id)}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      padding: 0,
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Travamentos Y */}
+          {travamentosY.length > 0 && (
+            <div>
+              <h4 style={{ 
+                fontSize: 14, 
+                fontWeight: 600, 
+                margin: '0 0 8px', 
+                color: '#dc2626' 
+              }}>
+                Direção Y
+              </h4>
+              {travamentosY.map(travamento => (
+                <div key={travamento.id} style={{ 
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr 1fr auto',
+                  alignItems: 'center',
+                  gap: 8, 
+                  marginBottom: 8,
+                  padding: '8px',
+                  background: '#1e293b',
+                  borderRadius: 6,
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Coordenada (cm)</span>
+                    <input
+                      type="number"
+                      value={travamento.coordenada}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'coordenada', Number(e.target.value))}
+                      min={0}
+                      max={alturaTotal}
+                      step={1}
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        border: '1px solid #475569',
+                        borderRadius: 4,
+                        background: '#0b1220',
+                        color: THEME.pageText,
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Compressão (kN)</span>
+                    <input
+                      type="number"
+                      value={travamento.compressao}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'compressao', Number(e.target.value))}
+                      step={0.1}
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        border: '1px solid #475569',
+                        borderRadius: 4,
+                        background: '#0b1220',
+                        color: THEME.pageText,
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento (kN·m)</span>
+                    <input
+                      type="number"
+                      value={travamento.momento}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'momento', Number(e.target.value))}
+                      step={0.1}
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        border: '1px solid #475569',
+                        borderRadius: 4,
+                        background: '#0b1220',
+                        color: THEME.pageText,
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => removerTravamento(travamento.id)}
+                    style={{
+                      width: 24,
+                      height: 24,
+                      padding: 0,
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Informação útil */}
+      {travamentos.length === 0 && (
+        <div style={{ 
+          fontSize: 12, 
+          color: THEME.subtle, 
+          fontStyle: 'italic' 
+        }}>
+          Use os botões acima para adicionar travamentos nas direções X ou Y
+        </div>
+      )}
+
+      {/* Visualização dos segmentos */}
+      {travamentos.length > 0 && (
+        <SegmentosPilarVisualizacao 
+          alturaPilar={alturaTotal}
+          travamentos={travamentos}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ===================== VISUALIZAÇÃO DOS SEGMENTOS ===================== */
+function SegmentosPilarVisualizacao({
+  alturaPilar,
+  travamentos,
+}: {
+  alturaPilar: number;
+  travamentos: Travamento[];
+}) {
+  const segmentos = dividirPilarEmSegmentos(alturaPilar, travamentos);
+  const comprimentoFlambagemX = calcularComprimentoFlambagem(alturaPilar, travamentos, 'x');
+  const comprimentoFlambagemY = calcularComprimentoFlambagem(alturaPilar, travamentos, 'y');
+
+  return (
+    <div style={{ 
+      marginTop: 16,
+      padding: 12,
+      background: '#0f172a',
+      borderRadius: 8,
+      border: `1px solid ${THEME.border}`
+    }}>
+      <h4 style={{ 
+        fontSize: 14, 
+        fontWeight: 600, 
+        margin: '0 0 12px',
+        color: THEME.pageText 
+      }}>
+        Análise de Segmentos
+      </h4>
+
+      {/* Informações de comprimento de flambagem */}
+      <div style={{ 
+        display: 'flex', 
+        gap: 24, 
+        marginBottom: 12,
+        fontSize: 12 
+      }}>
+        <div>
+          <span style={{ color: THEME.subtle }}>Comprimento de flambagem X: </span>
+          <span style={{ color: '#2563eb', fontWeight: 600 }}>
+            {comprimentoFlambagemX.toFixed(1)} cm
+          </span>
+        </div>
+        <div>
+          <span style={{ color: THEME.subtle }}>Comprimento de flambagem Y: </span>
+          <span style={{ color: '#dc2626', fontWeight: 600 }}>
+            {comprimentoFlambagemY.toFixed(1)} cm
+          </span>
+        </div>
+      </div>
+
+      {/* Lista de segmentos */}
+      <div style={{ fontSize: 12 }}>
+        <div style={{ 
+          fontWeight: 600, 
+          marginBottom: 6,
+          color: THEME.pageText 
+        }}>
+          Segmentos do pilar:
+        </div>
+        {segmentos.map((segmento, index) => (
+          <div key={index} style={{ 
+            padding: '4px 8px',
+            marginBottom: 2,
+            background: '#1e293b',
+            borderRadius: 4,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span>
+              {segmento.inicio.toFixed(1)} → {segmento.fim.toFixed(1)} cm 
+              ({segmento.comprimento.toFixed(1)} cm)
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span style={{ 
+                color: segmento.travamentosX ? '#2563eb' : THEME.subtle,
+                fontSize: 11
+              }}>
+                X: {segmento.travamentosX ? '✓' : '✗'}
+              </span>
+              <span style={{ 
+                color: segmento.travamentosY ? '#dc2626' : THEME.subtle,
+                fontSize: 11
+              }}>
+                Y: {segmento.travamentosY ? '✓' : '✗'}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 /* ===================== COMPONENTE PRINCIPAL ===================== */
 export default function KappaCalc() {
@@ -571,6 +975,14 @@ export default function KappaCalc() {
                 );
               })}
             </Row>
+          </div>
+          <div>
+            <SectionTitle>Travamentos</SectionTitle>
+            <TravamentosManager
+              travamentos={inputs.travamentos}
+              onTravamentosChange={(travamentos: Travamento[]) => setInputs(s => ({ ...s, travamentos }))}
+              alturaTotal={inputs.h}
+            />
           </div>
         </div>
       )}
