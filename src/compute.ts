@@ -37,6 +37,16 @@ export type Inputs = {
   travamentos: Travamento[];
 };
 
+export type SegmentoResultado = {
+  inicio: number; // coordenada inicial (cm)
+  fim: number; // coordenada final (cm)
+  centro: number; // coordenada do centro (cm)
+  Nk_superior: number; // compressão aplicada na coordenada superior (kN)
+  Mbase: number; // momento na coordenada inferior (kN·m)
+  Mtop: number; // momento na coordenada superior (kN·m)
+  M2d: number; // momento de segunda ordem calculado (kN·m)
+};
+
 export type Outputs = {
   fcd: number; // kN/cm²
   fyd: number; // kN/cm²
@@ -63,6 +73,8 @@ export type Outputs = {
   fa: number; // adim
   M1dminxx: number; // kN·m
   M1dminyy: number; // kN·m
+  segmentos_x: SegmentoResultado[]; // resultados por segmento direção X
+  segmentos_y: SegmentoResultado[]; // resultados por segmento direção Y
 };
 
 export function compute(inp: Inputs): Outputs {
@@ -127,32 +139,229 @@ export function compute(inp: Inputs): Outputs {
   const M1dminxx = Nsd * (0.015 + 0.03 * b / 100);
   const M1dminyy = Nsd * (0.015 + 0.03 * a / 100);
 
-  return { fcd, fyd, Nsd, Msd_tx, Msd_bx, Msd_ty, Msd_by, Ix, As, ix, lamda_x, lamda_y, MAx, MBx, MAy, MBy, alfa_bx, alfa_by, ex, erx, lamda1_x, lamda1_y, fa, M1dminxx, M1dminyy };
+  // Calcular resultados por segmento para direção X
+  const segmentosX = dividirPilarEmSegmentos(h, travamentos, 'x');
+  const segmentos_x: SegmentoResultado[] = segmentosX.map(segmento => {
+
+    // Determinar Nk_superior (compressão na coordenada superior)
+    let Nk_superior = 0;
+    const travamentoNoFim = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'x');
+    if (travamentoNoFim) {
+      Nk_superior = travamentoNoFim.compressao;
+    } else if (segmento.fim === h) {
+      Nk_superior = Nsk; // no topo do pilar
+    }
+    
+    // Determinar momentos na base e topo do segmento
+    let Mbase = 0, Mtop = 0;
+    if (segmento.inicio === 0) {
+      Mbase = Msk_bx; // base do pilar
+    } else {
+      const travamentoNoInicio = travamentos.find(t => t.coordenada === segmento.inicio && t.direcao === 'x');
+      if (travamentoNoInicio) {
+        Mbase = travamentoNoInicio.momento;
+      }
+    }
+    
+    if (segmento.fim === h) {
+      Mtop = Msk_tx; // topo do pilar
+    } else {
+      const travamentoNoFim = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'x');
+      if (travamentoNoFim) {
+        Mtop = travamentoNoFim.momento;
+      }
+    }
+    
+    // Calcular lambda para o segmento
+    const lamda_segmento = segmento.comprimento / ix;
+    
+    // Calcular M2d para o segmento
+    const resultadoM2d = calcularM2dPorSegmento({
+      segmentoComprimento: segmento.comprimento,
+      Nk_superior: Nk_superior,
+      Mbase: Mbase,
+      Mtop: Mtop,
+      lamda_segmento: lamda_segmento,
+      fa: fa,
+      alfa_b_segmento: alfa_bx,
+      dimensaoTransversal: b,
+      Nsd: Nsd
+    });
+    
+    return {
+      inicio: segmento.inicio,
+      fim: segmento.fim,
+      centro: (segmento.inicio + segmento.fim) / 2,
+      Nk_superior: Nk_superior,
+      Mbase: Mbase,
+      Mtop: Mtop,
+      M2d: resultadoM2d.M2d
+    };
+  });
+
+  // Calcular resultados por segmento para direção Y
+  const segmentosY = dividirPilarEmSegmentos(h, travamentos, 'y');
+  const segmentos_y: SegmentoResultado[] = segmentosY.map(segmento => {
+    // Determinar Nk_superior (compressão na coordenada superior)
+    let Nk_superior = 0;
+    const travamentoNoFim = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'y');
+    if (travamentoNoFim) {
+      Nk_superior = travamentoNoFim.compressao;
+    } else if (segmento.fim === h) {
+      Nk_superior = Nsk; // no topo do pilar
+    }
+    
+    // Determinar momentos na base e topo do segmento
+    let Mbase = 0, Mtop = 0;
+    if (segmento.inicio === 0) {
+      Mbase = Msk_by; // base do pilar
+    } else {
+      const travamentoNoInicio = travamentos.find(t => t.coordenada === segmento.inicio && t.direcao === 'y');
+      if (travamentoNoInicio) {
+        Mbase = travamentoNoInicio.momento;
+      }
+    }
+    
+    if (segmento.fim === h) {
+      Mtop = Msk_ty; // topo do pilar
+    } else {
+      const travamentoNoFim = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'y');
+      if (travamentoNoFim) {
+        Mtop = travamentoNoFim.momento;
+      }
+    }
+    
+    // Calcular lambda para o segmento (direção Y usa raio de giração iy)
+    const iy = Math.sqrt(Iy / As);
+    const lamda_segmento = segmento.comprimento / iy;
+    
+    // Calcular M2d para o segmento
+    const resultadoM2d = calcularM2dPorSegmento({
+      segmentoComprimento: segmento.comprimento,
+      Nk_superior: Nk_superior,
+      Mbase: Mbase,
+      Mtop: Mtop,
+      lamda_segmento: lamda_segmento,
+      fa: fa,
+      alfa_b_segmento: alfa_by,
+      dimensaoTransversal: a,
+      Nsd: Nsd
+    });
+    
+    return {
+      inicio: segmento.inicio,
+      fim: segmento.fim,
+      centro: (segmento.inicio + segmento.fim) / 2,
+      Nk_superior: Nk_superior,
+      Mbase: Mbase,
+      Mtop: Mtop,
+      M2d: resultadoM2d.M2d
+    };
+  });
+
+  return { 
+    fcd, fyd, Nsd, Msd_tx, Msd_bx, Msd_ty, Msd_by, Ix, As, ix, lamda_x, lamda_y, 
+    MAx, MBx, MAy, MBy, alfa_bx, alfa_by, ex, erx, lamda1_x, lamda1_y, fa, 
+    M1dminxx, M1dminyy, segmentos_x, segmentos_y 
+  };
 }
 
 // Valores padrão
 export const defaultInputs: Inputs = {
-  a: 20, b: 20, h: 500,
-  gama_c: 1.4, gama_s: 1.15, gama_f: 1.4,
-  fck: 30, fyk: 500,
-  Nsk: 500,
-  Msk_tx: -20, Msk_bx: 30,
-  Msk_ty: -20, Msk_by: 30,
+  a: 25, b: 25, h: 640,
+  gama_c: 1.4, gama_s: 1.15, gama_f: 1,
+  fck: 20, fyk: 500,
+  Nsk: 840,
+  Msk_tx: -24, Msk_bx: 48,
+  Msk_ty: -24, Msk_by: 48,
   travamentos: [],
 };
+
+// Função para calcular M2d por segmento
+export function calcularM2dPorSegmento(params: {
+  segmentoComprimento: number;
+  Nk_superior: number;
+  Mbase: number;
+  Mtop: number;
+  lamda_segmento: number;
+  fa: number;
+  alfa_b_segmento: number;
+  dimensaoTransversal: number; // a ou b conforme direção
+  Nsd: number;
+}): { M2d: number; kappa: number; convergiu: boolean } {
+  const { Nk_superior, Mbase, Mtop, lamda_segmento, fa, dimensaoTransversal } = params;
+  
+  // Se não há compressão no segmento, não há M2d
+  if (Nk_superior <= 0) {
+    return { M2d: 0, kappa: 0, convergiu: true };
+  }
+  
+  // Momento MA e MB para o segmento
+  const MA_seg = Math.max(Math.abs(Mbase), Math.abs(Mtop));
+  const MB_seg_min = Math.min(Math.abs(Mbase), Math.abs(Mtop));
+  const MB_seg = Mbase * Mtop >= 0 ? MB_seg_min : -MB_seg_min;
+  
+  // Se não há momentos, não há M2d
+  if (MA_seg === 0) {
+    return { M2d: 0, kappa: 0, convergiu: true };
+  }
+  
+  // Parâmetro alfa_b para o segmento
+  const alfa_b_calc = 0.6 + 0.4 * (MB_seg / MA_seg);
+  
+  // Usar iteração similar ao método global, mas aplicado ao segmento
+  const base = (dimensaoTransversal * Nk_superior) / 100;
+  if (!Number.isFinite(base) || Math.abs(base) < 1e-12) {
+    return { M2d: 0, kappa: 0, convergiu: false };
+  }
+  
+  let kappa = (2 * lamda_segmento * lamda_segmento * fa) / 120; // primeira aproximação
+  let M2d = 0;
+  
+  const tol = 1e-6;
+  const maxIter = 200;
+  const relax = 0.6;
+  
+  for (let i = 0; i < maxIter; i++) {
+    const denom = 1 - (lamda_segmento * lamda_segmento * fa) / (120 * kappa);
+    if (!Number.isFinite(denom) || Math.abs(denom) < 1e-12) {
+      return { M2d: 0, kappa: 0, convergiu: false };
+    }
+    
+    const M_iter = (alfa_b_calc * MA_seg) / denom;
+    const kappa_next = 32 * fa * (1 + 5 * (M_iter / base));
+    const kappa_mix = kappa + relax * (kappa_next - kappa);
+    
+    const err = Math.abs(kappa_mix - kappa) / Math.max(1, Math.abs(kappa));
+    kappa = kappa_mix;
+    M2d = M_iter;
+    
+    if (err <= tol) {
+      return { M2d: Math.round(M2d * 100) / 100, kappa: Math.round(kappa * 100) / 100, convergiu: true };
+    }
+  }
+  
+  return { M2d: Math.round(M2d * 100) / 100, kappa: Math.round(kappa * 100) / 100, convergiu: false };
+}
 
 // Função para dividir o pilar em segmentos baseado nos travamentos
 export function dividirPilarEmSegmentos(
   alturaPilar: number, 
-  travamentos: Travamento[]
+  travamentos: Travamento[],
+  direcao?: 'x' | 'y'
 ): SegmentoPilar[] {
+  // Filtrar travamentos por direção se especificada
+  const travamentosFiltrados = direcao 
+    ? travamentos.filter(t => t.direcao === direcao)
+    : travamentos;
+    
   // Criar lista de coordenadas únicas (base, topo e travamentos)
   const coordenadas = new Set<number>();
   coordenadas.add(0); // base do pilar
   coordenadas.add(alturaPilar); // topo do pilar
   
-  // Adicionar coordenadas dos travamentos
-  travamentos.forEach(t => {
+  // Adicionar coordenadas dos travamentos filtrados
+  travamentosFiltrados.forEach(t => {
     if (t.coordenada >= 0 && t.coordenada <= alturaPilar) {
       coordenadas.add(t.coordenada);
     }

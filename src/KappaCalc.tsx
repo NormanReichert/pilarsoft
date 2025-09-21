@@ -295,6 +295,7 @@ type DiagramMomentoProps = {
   top: number;    // Msd topo
   bottom: number; // Msd base
   m2d?: number;   // M2d (marcador meia-altura)
+  m2dPoints?: Array<{ centroCm: number; value: number }>; // centro do segmento (cm), valor M2d
 };
 
 function DiagramMomento({
@@ -302,6 +303,7 @@ function DiagramMomento({
   top,
   bottom,
   m2d,
+  m2dPoints,
 }: DiagramMomentoProps) {
   const w = 420,
     h = GRAPH_CONFIG.height,
@@ -393,6 +395,18 @@ function DiagramMomento({
             text={Number(bottom).toFixed(2)} 
             anchor={anchor(xBot)} 
           />
+          
+          {/* Pontos M2d por segmento (se fornecidos) */}
+          {m2dPoints?.map((p, i) => {
+            const y = yTop + (yBot - yTop) * (p.centroCm / GRAPH_CONFIG.height);
+            const x = axisX + (p.value || 0) * k;
+            return (
+              <g key={i}>
+                <circle cx={x} cy={y} r={3} fill={THEME.m2.stroke} />
+                <TextLabel x={x + (x>=axisX?4:-4)} y={y-6} text={Number(p.value).toFixed(2)} anchor={anchor(x)} />
+              </g>
+            );
+          })}
         </svg>
       </div>
     </div>
@@ -1002,56 +1016,323 @@ export default function KappaCalc() {
               top={outputs.Msd_tx}
               bottom={outputs.Msd_bx}
               m2d={Number.isFinite(resKappax?.Msdx_tot) ? resKappax.Msdx_tot : undefined}
+              m2dPoints={outputs.segmentos_x?.map(s => ({ centroCm: s.centro, value: s.M2d }))}
             />
             <DiagramMomento
               title="Msd, y (kN·m)"
               top={outputs.Msd_ty}
               bottom={outputs.Msd_by}
               m2d={Number.isFinite(resKappay?.Msdy_tot) ? resKappay.Msdy_tot : undefined}
+              m2dPoints={outputs.segmentos_y?.map(s => ({ centroCm: s.centro, value: s.M2d }))}
             />
           </div>
         </div>
       )}
 
       {tab === "brutos" && (
-        // Duas tabelas (x e y) lado a lado com largura fixa
-        <div style={{ 
-          display: "grid", 
-          gridTemplateColumns: "1fr 1fr", // força duas colunas de mesmo tamanho
-          gap: 150, // aumenta o espaço entre as tabelas
-          maxWidth: 900, // limita a largura máxima do container
-          marginTop: -135 // centraliza o container GAMBIARRA
-        }}>
-          <TableKV
-            title="VALORES EM TORNO DE X"
-            rows={[
-              ["Msd,tx", outputs.Msd_tx, "kN·m"],
-              ["Msd,bx", outputs.Msd_bx, "kN·m"],
-              ["M1dminxx", outputs.M1dminxx, "kN·m"],
-              ["λx", outputs.lamda_x, "-"],
-              ["λ1x", outputs.lamda1_x, "-"],
-              ["αb,x", outputs.alfa_bx, "-"],
-              ["MAx", outputs.MAx, "kN·m"],
-              ["MBx", outputs.MBx, "kN·m"],
-              ["κx", Number.isFinite(resKappax.kappax) ? resKappax.kappax : Number.NaN, "-"],
-              ["M2d,x", Number.isFinite(resKappax.Msdx_tot) ? resKappax.Msdx_tot : Number.NaN, "kN·m"],
-            ]}
-          />
-          <TableKV
-            title="VALORES EM TORNO DE Y"
-            rows={[
-              ["Msd,ty", outputs.Msd_ty, "kN·m"],
-              ["Msd,by", outputs.Msd_by, "kN·m"],
-              ["M1dminyy", outputs.M1dminyy, "kN·m"],
-              ["λy", outputs.lamda_y, "-"],
-              ["λ1y", outputs.lamda1_y, "-"],
-              ["αb,y", outputs.alfa_by, "-"],
-              ["MAy", outputs.MAy, "kN·m"],
-              ["MBy", outputs.MBy, "kN·m"],
-              ["κy", Number.isFinite(resKappay.kappay) ? resKappay.kappay : Number.NaN, "-"],
-              ["M2d,y", Number.isFinite(resKappay.Msdy_tot) ? resKappay.Msdy_tot : Number.NaN, "kN·m"],
-            ]}
-          />
+        <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+          {/* Tabelas principais lado a lado */}
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "1fr 1fr", // força duas colunas de mesmo tamanho
+            gap: 150, // aumenta o espaço entre as tabelas
+            maxWidth: 900, // limita a largura máxima do container
+            marginTop: -135 // centraliza o container GAMBIARRA
+          }}>
+            <TableKV
+              title="VALORES EM TORNO DE X"
+              rows={[
+                ["Msd,tx", outputs.Msd_tx, "kN·m"],
+                ["Msd,bx", outputs.Msd_bx, "kN·m"],
+                ["M1dminxx", outputs.M1dminxx, "kN·m"],
+                ["λx", outputs.lamda_x, "-"],
+                ["λ1x", outputs.lamda1_x, "-"],
+                ["αb,x", outputs.alfa_bx, "-"],
+                ["MAx", outputs.MAx, "kN·m"],
+                ["MBx", outputs.MBx, "kN·m"],
+                ["κx", Number.isFinite(resKappax.kappax) ? resKappax.kappax : Number.NaN, "-"],
+                ["M2d,x", Number.isFinite(resKappax.Msdx_tot) ? resKappax.Msdx_tot : Number.NaN, "kN·m"],
+              ]}
+            />
+            <TableKV
+              title="VALORES EM TORNO DE Y"
+              rows={[
+                ["Msd,ty", outputs.Msd_ty, "kN·m"],
+                ["Msd,by", outputs.Msd_by, "kN·m"],
+                ["M1dminyy", outputs.M1dminyy, "kN·m"],
+                ["λy", outputs.lamda_y, "-"],
+                ["λ1y", outputs.lamda1_y, "-"],
+                ["αb,y", outputs.alfa_by, "-"],
+                ["MAy", outputs.MAy, "kN·m"],
+                ["MBy", outputs.MBy, "kN·m"],
+                ["κy", Number.isFinite(resKappay.kappay) ? resKappay.kappay : Number.NaN, "-"],
+                ["M2d,y", Number.isFinite(resKappay.Msdy_tot) ? resKappay.Msdy_tot : Number.NaN, "kN·m"],
+              ]}
+            />
+          </div>
+
+          {/* Tabelas de segmentos */}
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "1fr 1fr", 
+            gap: 40,
+            maxWidth: 1200,
+            margin: "0 auto"
+          }}>
+            {/* Segmentos X */}
+            <div>
+              <div style={{ 
+                fontWeight: 700, 
+                marginBottom: 12, 
+                fontSize: 16,
+                color: THEME.pageText 
+              }}>
+                SEGMENTOS DIREÇÃO X
+              </div>
+              {outputs.segmentos_x?.length > 0 ? (
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'separate',
+                  borderSpacing: '0 2px'
+                }}>
+                  <thead>
+                    <tr style={{ background: THEME.border }}>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'left', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        Trecho (cm)
+                      </th>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'right', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        Nk_sup (kN)
+                      </th>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'right', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        Mbase (kN·m)
+                      </th>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'right', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        Mtop (kN·m)
+                      </th>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'right', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        M2d (kN·m)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {outputs.segmentos_x.map((seg, i) => (
+                      <tr key={i} style={{ 
+                        background: i % 2 === 0 ? 'rgba(30, 41, 59, 0.3)' : 'transparent'
+                      }}>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          color: THEME.pageText,
+                          fontSize: 12
+                        }}>
+                          {seg.inicio.toFixed(1)} → {seg.fim.toFixed(1)}
+                        </td>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'right',
+                          color: THEME.pageText,
+                          fontSize: 12
+                        }}>
+                          {Number.isFinite(seg.Nk_superior) ? seg.Nk_superior.toFixed(2) : '—'}
+                        </td>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'right',
+                          color: THEME.pageText,
+                          fontSize: 12
+                        }}>
+                          {Number.isFinite(seg.Mbase) ? seg.Mbase.toFixed(2) : '—'}
+                        </td>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'right',
+                          color: THEME.pageText,
+                          fontSize: 12
+                        }}>
+                          {Number.isFinite(seg.Mtop) ? seg.Mtop.toFixed(2) : '—'}
+                        </td>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'right',
+                          color: THEME.pageText,
+                          fontSize: 12,
+                          fontWeight: 600
+                        }}>
+                          {Number.isFinite(seg.M2d) ? seg.M2d.toFixed(2) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={{ 
+                  color: THEME.subtle, 
+                  fontSize: 12, 
+                  fontStyle: 'italic',
+                  padding: '20px',
+                  textAlign: 'center'
+                }}>
+                  Nenhum segmento calculado
+                </div>
+              )}
+            </div>
+
+            {/* Segmentos Y */}
+            <div>
+              <div style={{ 
+                fontWeight: 700, 
+                marginBottom: 12, 
+                fontSize: 16,
+                color: THEME.pageText 
+              }}>
+                SEGMENTOS DIREÇÃO Y
+              </div>
+              {outputs.segmentos_y?.length > 0 ? (
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'separate',
+                  borderSpacing: '0 2px'
+                }}>
+                  <thead>
+                    <tr style={{ background: THEME.border }}>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'left', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        Trecho (cm)
+                      </th>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'right', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        Nk_sup (kN)
+                      </th>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'right', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        Mbase (kN·m)
+                      </th>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'right', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        Mtop (kN·m)
+                      </th>
+                      <th style={{ 
+                        padding: '8px 12px', 
+                        textAlign: 'right', 
+                        color: THEME.pageText,
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}>
+                        M2d (kN·m)
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {outputs.segmentos_y.map((seg, i) => (
+                      <tr key={i} style={{ 
+                        background: i % 2 === 0 ? 'rgba(30, 41, 59, 0.3)' : 'transparent'
+                      }}>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          color: THEME.pageText,
+                          fontSize: 12
+                        }}>
+                          {seg.inicio.toFixed(1)} → {seg.fim.toFixed(1)}
+                        </td>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'right',
+                          color: THEME.pageText,
+                          fontSize: 12
+                        }}>
+                          {Number.isFinite(seg.Nk_superior) ? seg.Nk_superior.toFixed(2) : '—'}
+                        </td>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'right',
+                          color: THEME.pageText,
+                          fontSize: 12
+                        }}>
+                          {Number.isFinite(seg.Mbase) ? seg.Mbase.toFixed(2) : '—'}
+                        </td>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'right',
+                          color: THEME.pageText,
+                          fontSize: 12
+                        }}>
+                          {Number.isFinite(seg.Mtop) ? seg.Mtop.toFixed(2) : '—'}
+                        </td>
+                        <td style={{ 
+                          padding: '8px 12px', 
+                          textAlign: 'right',
+                          color: THEME.pageText,
+                          fontSize: 12,
+                          fontWeight: 600
+                        }}>
+                          {Number.isFinite(seg.M2d) ? seg.M2d.toFixed(2) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={{ 
+                  color: THEME.subtle, 
+                  fontSize: 12, 
+                  fontStyle: 'italic',
+                  padding: '20px',
+                  textAlign: 'center'
+                }}>
+                  Nenhum segmento calculado
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
