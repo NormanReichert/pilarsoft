@@ -118,8 +118,8 @@ export function compute(inp: Inputs): Outputs {
   const MBy = Msd_ty * Msd_by >= 0 ? MByMin : -MByMin;
 
   // Parâmetro alfa_b
-  const alfa_bx = MAx !== 0 ? 0.6 + 0.4 * (MBx / MAx) : 1.0;
-  const alfa_by = MAy !== 0 ? 0.6 + 0.4 * (MBy / MAy) : 1.0;
+  const alfa_bx = MAx !== 0 ? Math.max(0.4, Math.min(1.0, 0.6 + 0.4 * (MBx / MAx))) : 1.0;
+  const alfa_by = MAy !== 0 ? Math.max(0.4, Math.min(1.0, 0.6 + 0.4 * (MBy / MAy))) : 1.0;
 
   // Excentricidades
   const ex = Nsd !== 0 ? (Math.abs(Msd_bx) / Nsd) * 100 : 0;
@@ -307,7 +307,7 @@ export function calcularM2dPorSegmento(params: {
   }
   
   // Parâmetro alfa_b para o segmento
-  const alfa_b_calc = 0.6 + 0.4 * (MB_seg / MA_seg);
+  const alfa_b_calc = Math.max(0.4, Math.min(1.0, 0.6 + 0.4 * (MB_seg / MA_seg)));
   
   // Usar iteração similar ao método global, mas aplicado ao segmento
   const base = (dimensaoTransversal * Nk_superior) / 100;
