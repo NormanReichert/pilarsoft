@@ -849,7 +849,7 @@ export default function KappaCalc() {
     () =>
       resolverKappaMsd_x(
         { lamda_x: outputs.lamda_x, fa: outputs.fa, alfa_bx: outputs.alfa_bx, MAx: outputs.MAx, b: inputs.b, Nsd: outputs.Nsd },
-        { tol: 1e-6, maxIter: 300, relax: 0.6 }
+        { tol: 1e-6, maxIter: 300 }
       ),
     [outputs.lamda_x, outputs.fa, outputs.alfa_bx, outputs.MAx, inputs.b, outputs.Nsd]
   );
@@ -858,7 +858,7 @@ export default function KappaCalc() {
     () =>
       resolverKappaMsd_y(
         { lamda_y: outputs.lamda_y, fa: outputs.fa, alfa_by: outputs.alfa_by, MAy: outputs.MAy, a: inputs.a, Nsd: outputs.Nsd },
-        { tol: 1e-6, maxIter: 300, relax: 0.6 }
+        { tol: 1e-6, maxIter: 300 }
       ),
     [outputs.lamda_y, outputs.fa, outputs.alfa_by, outputs.MAy, inputs.a, outputs.Nsd]
   );
@@ -1016,14 +1016,14 @@ export default function KappaCalc() {
               top={outputs.Msd_tx}
               bottom={outputs.Msd_bx}
               m2d={Number.isFinite(resKappax?.Msdx_tot) ? resKappax.Msdx_tot : undefined}
-              m2dPoints={outputs.segmentos_x?.map(s => ({ centroCm: s.centro, value: s.M2d }))}
+              m2dPoints={outputs.segmentos_x?.filter(s => s.M2d !== null).map(s => ({ centroCm: s.centro, value: s.M2d as number }))}
             />
             <DiagramMomento
               title="Msd, y (kN·m)"
               top={outputs.Msd_ty}
               bottom={outputs.Msd_by}
               m2d={Number.isFinite(resKappay?.Msdy_tot) ? resKappay.Msdy_tot : undefined}
-              m2dPoints={outputs.segmentos_y?.map(s => ({ centroCm: s.centro, value: s.M2d }))}
+              m2dPoints={outputs.segmentos_y?.filter(s => s.M2d !== null).map(s => ({ centroCm: s.centro, value: s.M2d as number }))}
             />
           </div>
         </div>
@@ -1187,7 +1187,7 @@ export default function KappaCalc() {
                           fontSize: 12,
                           fontWeight: 600
                         }}>
-                          {Number.isFinite(seg.M2d) ? seg.M2d.toFixed(2) : '—'}
+                          {seg.M2d === null ? 'Não convergiu!' : Number.isFinite(seg.M2d) ? seg.M2d.toFixed(2) : '—'}
                         </td>
                       </tr>
                     ))}
@@ -1314,7 +1314,7 @@ export default function KappaCalc() {
                           fontSize: 12,
                           fontWeight: 600
                         }}>
-                          {Number.isFinite(seg.M2d) ? seg.M2d.toFixed(2) : '—'}
+                          {seg.M2d === null ? 'Não convergiu!' : Number.isFinite(seg.M2d) ? seg.M2d.toFixed(2) : '—'}
                         </td>
                       </tr>
                     ))}

@@ -44,7 +44,7 @@ export type SegmentoResultado = {
   Nk_superior: number; // compressão aplicada na coordenada superior (kN)
   Mbase: number; // momento na coordenada inferior (kN·m)
   Mtop: number; // momento na coordenada superior (kN·m)
-  M2d: number; // momento de segunda ordem calculado (kN·m)
+  M2d: number | null; // momento de segunda ordem calculado (kN·m) ou null se não convergiu
 };
 
 export type Outputs = {
@@ -195,7 +195,7 @@ export function compute(inp: Inputs): Outputs {
       Nk_superior: Nk_superior,
       Mbase: Mbase,
       Mtop: Mtop,
-      M2d: resultadoM2d.M2d
+      M2d: resultadoM2d.convergiu ? resultadoM2d.M2d : null
     };
   });
 
@@ -255,7 +255,7 @@ export function compute(inp: Inputs): Outputs {
       Nk_superior: Nk_superior,
       Mbase: Mbase,
       Mtop: Mtop,
-      M2d: resultadoM2d.M2d
+      M2d: resultadoM2d.convergiu ? resultadoM2d.M2d : null
     };
   });
 
@@ -319,7 +319,7 @@ export function calcularM2dPorSegmento(params: {
   let M2d = 0;
   
   const tol = 0.001; // 0.1% conforme especificação
-  const maxIter = 200;
+  const maxIter = 99999;
   
   for (let i = 0; i < maxIter; i++) {
     const denom = 1 - (lamda_segmento * lamda_segmento * fa) / (120 * kappa);
@@ -330,7 +330,7 @@ export function calcularM2dPorSegmento(params: {
     const kappa_next = 32 * fa * (1 + 5 * (M_iter / base));
   const kappa_mix = (kappa + kappa_next) / 2;
   // Log para debug
-  //console.log(`[Segmento] Iteração ${i+1}: kappa = ${kappa_mix.toFixed(6)}, M2d = ${M_iter.toFixed(6)}`);
+  console.log(`[Segmento] Iteração ${i+1}: kappa = ${kappa_mix.toFixed(6)}, M2d = ${M_iter.toFixed(6)}`);
   // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
   const err = Math.abs(M_iter - M2d) / Math.max(1e-12, Math.abs(M2d));
   kappa = kappa_mix;
@@ -451,7 +451,7 @@ export type _KappaIterOpts = { tol?: number; maxIter?: number; relax?: number };
 
 export function resolverKappaMsd_x(p: _KappaIterParams_x, opts: _KappaIterOpts = {}) {
   const tol = opts.tol ?? 0.001; // 0.1% conforme especificação
-  const maxIter = opts.maxIter ?? 200;
+  const maxIter = opts.maxIter ?? 99999;
 
   const base = (p.b * p.Nsd) / 100;
   if (!Number.isFinite(base) || Math.abs(base) < 1e-12) {
@@ -498,7 +498,7 @@ export type _KappaIterParams_y = {
 
 export function resolverKappaMsd_y(p: _KappaIterParams_y, opts: _KappaIterOpts = {}) {
   const tol = opts.tol ?? 0.001; // 0.1% conforme especificação
-  const maxIter = opts.maxIter ?? 200;
+  const maxIter = opts.maxIter ?? 99999;
 
   const base = (p.a * p.Nsd) / 100;
   if (!Number.isFinite(base) || Math.abs(base) < 1e-12) {
