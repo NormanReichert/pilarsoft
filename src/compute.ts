@@ -268,12 +268,12 @@ export function compute(inp: Inputs): Outputs {
 
 // Valores padrão
 export const defaultInputs: Inputs = {
-  a: 25, b: 25, h: 640,
+  a: 25, b: 35, h: 640,
   gama_c: 1.4, gama_s: 1.15, gama_f: 1,
-  fck: 20, fyk: 500,
-  Nsk: 840,
-  Msk_tx: -24, Msk_bx: 48,
-  Msk_ty: -24, Msk_by: 48,
+  fck: 30, fyk: 500,
+  Nsk: 1640,
+  Msk_tx: -30, Msk_bx: 50,
+  Msk_ty: -10, Msk_by: 48,
   travamentos: [],
 };
 
@@ -318,7 +318,7 @@ export function calcularM2dPorSegmento(params: {
   let kappa = (2 * lamda_segmento * lamda_segmento * fa) / 120; // primeira aproximação
   let M2d = 0;
   
-  const tol = 1e-6;
+  const tol = 0.001; // 0.1% conforme especificação
   const maxIter = 200;
   const relax = 0.6;
   
@@ -327,15 +327,15 @@ export function calcularM2dPorSegmento(params: {
     if (!Number.isFinite(denom) || Math.abs(denom) < 1e-12) {
       return { M2d: 0, kappa: 0, convergiu: false };
     }
-    
     const M_iter = (alfa_b_calc * MA_seg) / denom;
     const kappa_next = 32 * fa * (1 + 5 * (M_iter / base));
-    const kappa_mix = kappa + relax * (kappa_next - kappa);
-    
-    const err = Math.abs(kappa_mix - kappa) / Math.max(1, Math.abs(kappa));
-    kappa = kappa_mix;
-    M2d = M_iter;
-    
+  const kappa_mix = (kappa + kappa_next) / 2;
+  // Log para debug
+  //console.log(`[Segmento] Iteração ${i+1}: kappa = ${kappa_mix.toFixed(6)}, M2d = ${M_iter.toFixed(6)}`);
+  // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
+  const err = Math.abs(M_iter - M2d) / Math.max(1e-12, Math.abs(M2d));
+  kappa = kappa_mix;
+  M2d = M_iter;
     if (err <= tol) {
       return { M2d: Math.round(M2d * 100) / 100, kappa: Math.round(kappa * 100) / 100, convergiu: true };
     }
@@ -451,7 +451,7 @@ export type _KappaIterParams_x = {
 export type _KappaIterOpts = { tol?: number; maxIter?: number; relax?: number };
 
 export function resolverKappaMsd_x(p: _KappaIterParams_x, opts: _KappaIterOpts = {}) {
-  const tol = opts.tol ?? 1e-6;
+  const tol = opts.tol ?? 0.001; // 0.1% conforme especificação
   const maxIter = opts.maxIter ?? 200;
   const relax = opts.relax ?? 0.6;
 
@@ -469,14 +469,14 @@ export function resolverKappaMsd_x(p: _KappaIterParams_x, opts: _KappaIterOpts =
       return { kappax: Number.NaN, Msdx_tot: Number.NaN, iterations: i + 1, convergiu: false, erro: "Denominador ~ 0 em Msdx_tot" };
     }
     const Mx = (p.alfa_bx * p.MAx) / denom;
-
     const kappax_next = 32 * p.fa * (1 + 5 * (Mx / base));
-    const kappax_mix = kappax + relax * (kappax_next - kappax);
-
-    const err = Math.abs(kappax_mix - kappax) / Math.max(1, Math.abs(kappax));
-    kappax = kappax_mix;
-    Msdx_tot = Mx;
-
+  const kappax_mix = (kappax + kappax_next) / 2;
+  // Log para debug
+  console.log(`[Global X] Iteração ${i+1}: kappa = ${kappax_mix.toFixed(6)}, M2d = ${Mx.toFixed(6)}`);
+  // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
+  const err = Math.abs(Mx - Msdx_tot) / Math.max(1e-12, Math.abs(Msdx_tot));
+  kappax = kappax_mix;
+  Msdx_tot = Mx;
     if (err <= tol) {
       // arredonda só para exibir na UI
       const arred2 = (v: number) => Math.round(v * 100) / 100;
@@ -499,7 +499,7 @@ export type _KappaIterParams_y = {
 };
 
 export function resolverKappaMsd_y(p: _KappaIterParams_y, opts: _KappaIterOpts = {}) {
-  const tol = opts.tol ?? 1e-6;
+  const tol = opts.tol ?? 0.001; // 0.1% conforme especificação
   const maxIter = opts.maxIter ?? 200;
   const relax = opts.relax ?? 0.6;
 
@@ -517,14 +517,14 @@ export function resolverKappaMsd_y(p: _KappaIterParams_y, opts: _KappaIterOpts =
       return { kappay: Number.NaN, Msdy_tot: Number.NaN, iterations: i + 1, convergiu: false, erro: "Denominador ~ 0 em Msdy_tot" };
     }
     const My = (p.alfa_by * p.MAy) / denom;
-
     const kappay_next = 32 * p.fa * (1 + 5 * (My / base));
-    const kappay_mix = kappay + relax * (kappay_next - kappay);
-
-    const err = Math.abs(kappay_mix - kappay) / Math.max(1, Math.abs(kappay));
-    kappay = kappay_mix;
-    Msdy_tot = My;
-
+  const kappay_mix = (kappay + kappay_next) / 2;
+  // Log para debug
+  console.log(`[Global Y] Iteração ${i+1}: kappa = ${kappay_mix.toFixed(6)}, M2d = ${My.toFixed(6)}`);
+  // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
+  const err = Math.abs(My - Msdy_tot) / Math.max(1e-12, Math.abs(Msdy_tot));
+  kappay = kappay_mix;
+  Msdy_tot = My;
     if (err <= tol) {
       // arredonda só para exibir na UI
       const arred2 = (v: number) => Math.round(v * 100) / 100;
