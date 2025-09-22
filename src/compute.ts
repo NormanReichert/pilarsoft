@@ -320,7 +320,6 @@ export function calcularM2dPorSegmento(params: {
   
   const tol = 0.001; // 0.1% conforme especificação
   const maxIter = 200;
-  const relax = 0.6;
   
   for (let i = 0; i < maxIter; i++) {
     const denom = 1 - (lamda_segmento * lamda_segmento * fa) / (120 * kappa);
@@ -453,7 +452,6 @@ export type _KappaIterOpts = { tol?: number; maxIter?: number; relax?: number };
 export function resolverKappaMsd_x(p: _KappaIterParams_x, opts: _KappaIterOpts = {}) {
   const tol = opts.tol ?? 0.001; // 0.1% conforme especificação
   const maxIter = opts.maxIter ?? 200;
-  const relax = opts.relax ?? 0.6;
 
   const base = (p.b * p.Nsd) / 100;
   if (!Number.isFinite(base) || Math.abs(base) < 1e-12) {
@@ -501,7 +499,6 @@ export type _KappaIterParams_y = {
 export function resolverKappaMsd_y(p: _KappaIterParams_y, opts: _KappaIterOpts = {}) {
   const tol = opts.tol ?? 0.001; // 0.1% conforme especificação
   const maxIter = opts.maxIter ?? 200;
-  const relax = opts.relax ?? 0.6;
 
   const base = (p.a * p.Nsd) / 100;
   if (!Number.isFinite(base) || Math.abs(base) < 1e-12) {
