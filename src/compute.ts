@@ -75,6 +75,9 @@ export type Outputs = {
   M1dminyy: number; // kN·m
   segmentos_x: SegmentoResultado[]; // resultados por segmento direção X
   segmentos_y: SegmentoResultado[]; // resultados por segmento direção Y
+  // Resultados globais de M2d
+  resKappax: { kappax: number; Msdx_tot: number; iterations: number; convergiu: boolean; erro: string | null };
+  resKappay: { kappay: number; Msdy_tot: number; iterations: number; convergiu: boolean; erro: string | null };
 };
 
 export function compute(inp: Inputs): Outputs {
@@ -259,10 +262,30 @@ export function compute(inp: Inputs): Outputs {
     };
   });
 
+  // Calcular M2d global para direção X
+  const resKappax = resolverKappaMsd_x({
+    lamda_x,
+    fa,
+    alfa_bx,
+    MAx,
+    b,
+    Nsd
+  });
+
+  // Calcular M2d global para direção Y
+  const resKappay = resolverKappaMsd_y({
+    lamda_y,
+    fa,
+    alfa_by,
+    MAy,
+    a,
+    Nsd
+  });
+
   return { 
     fcd, fyd, Nsd, Msd_tx, Msd_bx, Msd_ty, Msd_by, Ix, As, ix, lamda_x, lamda_y, 
     MAx, MBx, MAy, MBy, alfa_bx, alfa_by, ex, erx, lamda1_x, lamda1_y, fa, 
-    M1dminxx, M1dminyy, segmentos_x, segmentos_y 
+    M1dminxx, M1dminyy, segmentos_x, segmentos_y, resKappax, resKappay
   };
 }
 
@@ -277,7 +300,64 @@ export const defaultInputs: Inputs = {
   travamentos: [],
 };
 
-// Função para calcular M2d por segmento
+// Função unificada para cálculo de M2d
+export function calcularM2d(params: {
+  lambda: number;
+  fa: number;
+  alfa_b: number;
+  MA: number;
+  dimensaoTransversal: number; // a ou b conforme direção
+  N: number; // Nsd ou Nk_superior conforme o caso
+}): { M2d: number; kappa: number; convergiu: boolean } {
+  const { lambda, fa, alfa_b, MA, dimensaoTransversal, N } = params;
+  
+  // Se não há compressão, não há M2d
+  if (N <= 0) {
+    return { M2d: 0, kappa: 0, convergiu: true };
+  }
+  
+  // Se não há momentos, não há M2d
+  if (MA === 0) {
+    return { M2d: 0, kappa: 0, convergiu: true };
+  }
+  
+  const base = (dimensaoTransversal * N) / 100;
+  if (!Number.isFinite(base) || Math.abs(base) < 1e-12) {
+    return { M2d: 0, kappa: 0, convergiu: false };
+  }
+  
+  let kappa = (2 * lambda * lambda * fa) / 120; // primeira aproximação
+  let M2d = 0;
+  
+  const tol = 0.001; // 0.1% conforme especificação
+  const maxIter = 99999;
+  
+  for (let i = 0; i < maxIter; i++) {
+    const denom = 1 - (lambda * lambda * fa) / (120 * kappa);
+    if (!Number.isFinite(denom) || Math.abs(denom) < 1e-12) {
+      return { M2d: 0, kappa: 0, convergiu: false };
+    }
+    const M_iter = (alfa_b * MA) / denom;
+    const kappa_next = 32 * fa * (1 + 5 * (M_iter / base));
+    const kappa_mix = (kappa + kappa_next) / 2;
+    
+    // Log para debug
+    // console.log(`${debugPrefix} Iteração ${i+1}: kappa = ${kappa_mix.toFixed(6)}, M2d = ${M_iter.toFixed(6)}`);
+    
+    // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
+    const err = Math.abs(M_iter - M2d) / Math.max(1e-12, Math.abs(M2d));
+    kappa = kappa_mix;
+    M2d = M_iter;
+    
+    if (err <= tol) {
+      return { M2d, kappa, convergiu: true };
+    }
+  }
+  
+  return { M2d, kappa, convergiu: false };
+}
+
+// Função para calcular M2d por segmento usando a formulação unificada
 export function calcularM2dPorSegmento(params: {
   segmentoComprimento: number;
   Nk_superior: number;
@@ -291,56 +371,26 @@ export function calcularM2dPorSegmento(params: {
 }): { M2d: number; kappa: number; convergiu: boolean } {
   const { Nk_superior, Mbase, Mtop, lamda_segmento, fa, dimensaoTransversal } = params;
   
-  // Se não há compressão no segmento, não há M2d
-  if (Nk_superior <= 0) {
-    return { M2d: 0, kappa: 0, convergiu: true };
-  }
-  
   // Momento MA e MB para o segmento
   const MA_seg = Math.max(Math.abs(Mbase), Math.abs(Mtop));
   const MB_seg_min = Math.min(Math.abs(Mbase), Math.abs(Mtop));
   const MB_seg = Mbase * Mtop >= 0 ? MB_seg_min : -MB_seg_min;
   
-  // Se não há momentos, não há M2d
-  if (MA_seg === 0) {
-    return { M2d: 0, kappa: 0, convergiu: true };
-  }
-  
   // Parâmetro alfa_b para o segmento
   const alfa_b_calc = Math.max(0.4, Math.min(1.0, 0.6 + 0.4 * (MB_seg / MA_seg)));
   
-  // Usar iteração similar ao método global, mas aplicado ao segmento
-  const base = (dimensaoTransversal * Nk_superior) / 100;
-  if (!Number.isFinite(base) || Math.abs(base) < 1e-12) {
-    return { M2d: 0, kappa: 0, convergiu: false };
-  }
+  const resultado = calcularM2d({
+    lambda: lamda_segmento,
+    fa,
+    alfa_b: alfa_b_calc,
+    MA: MA_seg,
+    dimensaoTransversal,
+    N: Nk_superior
+  });
   
-  let kappa = (2 * lamda_segmento * lamda_segmento * fa) / 120; // primeira aproximação
-  let M2d = 0;
+  console.log(`[Segmento] M2d = ${resultado.M2d.toFixed(3)}, kappa = ${resultado.kappa.toFixed(3)}, convergiu = ${resultado.convergiu}`);
   
-  const tol = 0.001; // 0.1% conforme especificação
-  const maxIter = 99999;
-  
-  for (let i = 0; i < maxIter; i++) {
-    const denom = 1 - (lamda_segmento * lamda_segmento * fa) / (120 * kappa);
-    if (!Number.isFinite(denom) || Math.abs(denom) < 1e-12) {
-      return { M2d: 0, kappa: 0, convergiu: false };
-    }
-    const M_iter = (alfa_b_calc * MA_seg) / denom;
-    const kappa_next = 32 * fa * (1 + 5 * (M_iter / base));
-  const kappa_mix = (kappa + kappa_next) / 2;
-  // Log para debug
-  console.log(`[Segmento] Iteração ${i+1}: kappa = ${kappa_mix.toFixed(6)}, M2d = ${M_iter.toFixed(6)}`);
-  // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
-  const err = Math.abs(M_iter - M2d) / Math.max(1e-12, Math.abs(M2d));
-  kappa = kappa_mix;
-  M2d = M_iter;
-    if (err <= tol) {
-      return { M2d: Math.round(M2d * 100) / 100, kappa: Math.round(kappa * 100) / 100, convergiu: true };
-    }
-  }
-  
-  return { M2d: Math.round(M2d * 100) / 100, kappa: Math.round(kappa * 100) / 100, convergiu: false };
+  return resultado;
 }
 
 // Função para dividir o pilar em segmentos baseado nos travamentos
@@ -449,41 +499,35 @@ export type _KappaIterParams_x = {
 };
 export type _KappaIterOpts = { tol?: number; maxIter?: number; relax?: number };
 
-export function resolverKappaMsd_x(p: _KappaIterParams_x, opts: _KappaIterOpts = {}) {
-  const tol = opts.tol ?? 0.001; // 0.1% conforme especificação
-  const maxIter = opts.maxIter ?? 99999;
+export function resolverKappaMsd_x(p: _KappaIterParams_x, _opts: _KappaIterOpts = {}) {
+  const resultado = calcularM2d({
+    lambda: p.lamda_x,
+    fa: p.fa,
+    alfa_b: p.alfa_bx,
+    MA: p.MAx,
+    dimensaoTransversal: p.b,
+    N: p.Nsd
+  });
 
-  const base = (p.b * p.Nsd) / 100;
-  if (!Number.isFinite(base) || Math.abs(base) < 1e-12) {
-    return { kappax: Number.NaN, Msdx_tot: Number.NaN, iterations: 0, convergiu: false, erro: "b*Nsd/100 inválido" };
+  console.log(`[Global X] M2d = ${resultado.M2d.toFixed(3)}, kappa = ${resultado.kappa.toFixed(3)}, convergiu = ${resultado.convergiu}`);
+
+  if (!resultado.convergiu) {
+    return { 
+      kappax: Number.NaN, 
+      Msdx_tot: Number.NaN, 
+      iterations: 0, 
+      convergiu: false, 
+      erro: "Não convergiu no cálculo de M2d" 
+    };
   }
 
-  let kappax = (2 * p.lamda_x * p.lamda_x * p.fa) / 120; // primeira aproximação
-  let Msdx_tot = Number.NaN;
-
-  for (let i = 0; i < maxIter; i++) {
-    const denom = 1 - (p.lamda_x * p.lamda_x * p.fa) / (120 * kappax);
-    if (!Number.isFinite(denom) || Math.abs(denom) < 1e-12) {
-      return { kappax: Number.NaN, Msdx_tot: Number.NaN, iterations: i + 1, convergiu: false, erro: "Denominador ~ 0 em Msdx_tot" };
-    }
-    const Mx = (p.alfa_bx * p.MAx) / denom;
-    const kappax_next = 32 * p.fa * (1 + 5 * (Mx / base));
-  const kappax_mix = (kappax + kappax_next) / 2;
-  // Log para debug
-  console.log(`[Global X] Iteração ${i+1}: kappa = ${kappax_mix.toFixed(6)}, M2d = ${Mx.toFixed(6)}`);
-  // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
-  const err = Math.abs(Mx - Msdx_tot) / Math.max(1e-12, Math.abs(Msdx_tot));
-  kappax = kappax_mix;
-  Msdx_tot = Mx;
-    if (err <= tol) {
-      // arredonda só para exibir na UI
-      const arred2 = (v: number) => Math.round(v * 100) / 100;
-      return { kappax: arred2(kappax), Msdx_tot: arred2(Msdx_tot), iterations: i + 1, convergiu: true, erro: null };
-    }
-  }
-
-  const arred2 = (v: number) => Math.round(v * 100) / 100;
-  return { kappax: arred2(kappax), Msdx_tot: arred2(Msdx_tot), iterations: maxIter, convergiu: false, erro: "Não convergiu no máximo de iterações" };
+  return { 
+    kappax: resultado.kappa, 
+    Msdx_tot: resultado.M2d, 
+    iterations: 1, 
+    convergiu: true, 
+    erro: null 
+  };
 }
 
 // Iterador κ e Msd_tot em torno de y
@@ -496,39 +540,33 @@ export type _KappaIterParams_y = {
   Nsd: number;
 };
 
-export function resolverKappaMsd_y(p: _KappaIterParams_y, opts: _KappaIterOpts = {}) {
-  const tol = opts.tol ?? 0.001; // 0.1% conforme especificação
-  const maxIter = opts.maxIter ?? 99999;
+export function resolverKappaMsd_y(p: _KappaIterParams_y, _opts: _KappaIterOpts = {}) {
+  const resultado = calcularM2d({
+    lambda: p.lamda_y,
+    fa: p.fa,
+    alfa_b: p.alfa_by,
+    MA: p.MAy,
+    dimensaoTransversal: p.a,
+    N: p.Nsd
+  });
 
-  const base = (p.a * p.Nsd) / 100;
-  if (!Number.isFinite(base) || Math.abs(base) < 1e-12) {
-    return { kappay: Number.NaN, Msdy_tot: Number.NaN, iterations: 0, convergiu: false, erro: "a*Nsd/100 inválido" };
+  console.log(`[Global Y] M2d = ${resultado.M2d.toFixed(3)}, kappa = ${resultado.kappa.toFixed(3)}, convergiu = ${resultado.convergiu}`);
+
+  if (!resultado.convergiu) {
+    return { 
+      kappay: Number.NaN, 
+      Msdy_tot: Number.NaN, 
+      iterations: 0, 
+      convergiu: false, 
+      erro: "Não convergiu no cálculo de M2d" 
+    };
   }
 
-  let kappay = (2 * p.lamda_y * p.lamda_y * p.fa) / 120; // primeira aproximação
-  let Msdy_tot = Number.NaN;
-
-  for (let i = 0; i < maxIter; i++) {
-    const denom = 1 - (p.lamda_y * p.lamda_y * p.fa) / (120 * kappay);
-    if (!Number.isFinite(denom) || Math.abs(denom) < 1e-12) {
-      return { kappay: Number.NaN, Msdy_tot: Number.NaN, iterations: i + 1, convergiu: false, erro: "Denominador ~ 0 em Msdy_tot" };
-    }
-    const My = (p.alfa_by * p.MAy) / denom;
-    const kappay_next = 32 * p.fa * (1 + 5 * (My / base));
-  const kappay_mix = (kappay + kappay_next) / 2;
-  // Log para debug
-  console.log(`[Global Y] Iteração ${i+1}: kappa = ${kappay_mix.toFixed(6)}, M2d = ${My.toFixed(6)}`);
-  // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
-  const err = Math.abs(My - Msdy_tot) / Math.max(1e-12, Math.abs(Msdy_tot));
-  kappay = kappay_mix;
-  Msdy_tot = My;
-    if (err <= tol) {
-      // arredonda só para exibir na UI
-      const arred2 = (v: number) => Math.round(v * 100) / 100;
-      return { kappay: arred2(kappay), Msdy_tot: arred2(Msdy_tot), iterations: i + 1, convergiu: true, erro: null };
-    }
-  }
-
-  const arred2 = (v: number) => Math.round(v * 100) / 100;
-  return { kappay: arred2(kappay), Msdy_tot: arred2(Msdy_tot), iterations: maxIter, convergiu: false, erro: "Não convergiu no máximo de iterações" };
+  return { 
+    kappay: resultado.kappa, 
+    Msdy_tot: resultado.M2d, 
+    iterations: 1, 
+    convergiu: true, 
+    erro: null 
+  };
 }
