@@ -342,7 +342,7 @@ export function calcularM2d(params: {
     const kappa_mix = (kappa + kappa_next) / 2;
     
     // Log para debug
-    // console.log(`${debugPrefix} Iteração ${i+1}: kappa = ${kappa_mix.toFixed(6)}, M2d = ${M_iter.toFixed(6)}`);
+    console.log(`Iteração ${i+1}: kappa = ${kappa_mix.toFixed(6)}, M2d = ${M_iter.toFixed(6)}`);
     
     // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
     const err = Math.abs(M_iter - M2d) / Math.max(1e-12, Math.abs(M2d));

@@ -1,5 +1,5 @@
 // App.tsx - ponto de entrada simples
-import KappaCalc from "./KappaCalc";
+import KappaCalc from "./pages/KappaCalc";
 
 export default function App() {
   return <KappaCalc />;
