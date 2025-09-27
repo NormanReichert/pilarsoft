@@ -1,14 +1,12 @@
 // KappaCalc.tsx — Header fixo full-width (título+abas), tema escuro,
 // gráficos lado a lado, rótulos próximos e "Dados brutos" em duas tabelas.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   compute,
   defaultInputs,
   type Inputs,
   type Travamento,
-  dividirPilarEmSegmentos,
-  calcularComprimentoFlambagem,
   type Outputs,
 } from "../compute";
 import FixedHeader, { HEADER_H, type TabKey } from "../components/FixedHeader";

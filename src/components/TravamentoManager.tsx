@@ -16,7 +16,8 @@ function TravamentosManager({
       id: `trav_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       coordenada: alturaTotal / 2, // posição padrão no meio
       compressao: 0, // valor padrão
-      momento: 0, // valor padrão
+      momentoSuperior: 0, // valor padrão
+      momentoInferior: 0, // valor padrão
       direcao,
     };
     onTravamentosChange([...travamentos, novoTravamento]);
@@ -141,11 +142,29 @@ function TravamentosManager({
                     />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento (kN·m)</span>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento Superior (kN·m)</span>
                     <input
                       type="number"
-                      value={travamento.momento}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'momento', Number(e.target.value))}
+                      value={travamento.momentoSuperior}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'momentoSuperior', Number(e.target.value))}
+                      step={0.1}
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        border: '1px solid #475569',
+                        borderRadius: 4,
+                        background: '#0b1220',
+                        color: THEME.pageText,
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento Inferior (kN·m)</span>
+                    <input
+                      type="number"
+                      value={travamento.momentoInferior}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'momentoInferior', Number(e.target.value))}
                       step={0.1}
                       style={{
                         width: '100%',
@@ -243,11 +262,29 @@ function TravamentosManager({
                     />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento (kN·m)</span>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento Superior (kN·m)</span>
                     <input
                       type="number"
-                      value={travamento.momento}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'momento', Number(e.target.value))}
+                      value={travamento.momentoSuperior}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'momentoSuperior', Number(e.target.value))}
+                      step={0.1}
+                      style={{
+                        width: '100%',
+                        padding: '4px 6px',
+                        border: '1px solid #475569',
+                        borderRadius: 4,
+                        background: '#0b1220',
+                        color: THEME.pageText,
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento Inferior (kN·m)</span>
+                    <input
+                      type="number"
+                      value={travamento.momentoInferior}
+                      onChange={(e) => atualizarTravamento(travamento.id, 'momentoInferior', Number(e.target.value))}
                       step={0.1}
                       style={{
                         width: '100%',

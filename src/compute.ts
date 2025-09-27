@@ -3,7 +3,8 @@ export type Travamento = {
   id: string;
   coordenada: number; // coordenada da base até o travamento (cm)
   compressao: number; // compressão no travamento (kN)
-  momento: number; // momento aplicado no travamento (kN·m)
+  momentoSuperior: number; // momento superior aplicado no travamento (kN·m)
+  momentoInferior: number; // momento inferior aplicado no travamento (kN·m)
   direcao: 'x' | 'y';
 };
 
@@ -154,24 +155,25 @@ export function compute(inp: Inputs): Outputs {
     } else if (segmento.fim === h) {
       Nk_superior = Nsk; // no topo do pilar
     }
-    
+
     // Determinar momentos na base e topo do segmento
     let Mbase = 0, Mtop = 0;
+    // Momento na base: se existe travamento logo abaixo, pega momentoSuperior dele
     if (segmento.inicio === 0) {
       Mbase = Msk_bx; // base do pilar
     } else {
-      const travamentoNoInicio = travamentos.find(t => t.coordenada === segmento.inicio && t.direcao === 'x');
-      if (travamentoNoInicio) {
-        Mbase = travamentoNoInicio.momento;
+      const travamentoAbaixo = travamentos.find(t => t.coordenada === segmento.inicio && t.direcao === 'x');
+      if (travamentoAbaixo) {
+        Mbase = travamentoAbaixo.momentoSuperior;
       }
     }
-    
+    // Momento no topo: se existe travamento logo acima, pega momentoInferior dele
     if (segmento.fim === h) {
       Mtop = Msk_tx; // topo do pilar
     } else {
-      const travamentoNoFim = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'x');
-      if (travamentoNoFim) {
-        Mtop = travamentoNoFim.momento;
+      const travamentoAcima = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'x');
+      if (travamentoAcima) {
+        Mtop = travamentoAcima.momentoInferior;
       }
     }
     
@@ -213,24 +215,25 @@ export function compute(inp: Inputs): Outputs {
     } else if (segmento.fim === h) {
       Nk_superior = Nsk; // no topo do pilar
     }
-    
+
     // Determinar momentos na base e topo do segmento
     let Mbase = 0, Mtop = 0;
+    // Momento na base: se existe travamento logo abaixo, pega momentoSuperior dele
     if (segmento.inicio === 0) {
       Mbase = Msk_by; // base do pilar
     } else {
-      const travamentoNoInicio = travamentos.find(t => t.coordenada === segmento.inicio && t.direcao === 'y');
-      if (travamentoNoInicio) {
-        Mbase = travamentoNoInicio.momento;
+      const travamentoAbaixo = travamentos.find(t => t.coordenada === segmento.inicio && t.direcao === 'y');
+      if (travamentoAbaixo) {
+        Mbase = travamentoAbaixo.momentoSuperior;
       }
     }
-    
+    // Momento no topo: se existe travamento logo acima, pega momentoInferior dele
     if (segmento.fim === h) {
       Mtop = Msk_ty; // topo do pilar
     } else {
-      const travamentoNoFim = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'y');
-      if (travamentoNoFim) {
-        Mtop = travamentoNoFim.momento;
+      const travamentoAcima = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'y');
+      if (travamentoAcima) {
+        Mtop = travamentoAcima.momentoInferior;
       }
     }
     
@@ -330,7 +333,7 @@ export function calcularM2d(params: {
   let M2d = 0;
   
   const tol = 0.001; // 0.1% conforme especificação
-  const maxIter = 99999;
+  const maxIter = 9999;
   
   for (let i = 0; i < maxIter; i++) {
     const denom = 1 - (lambda * lambda * fa) / (120 * kappa);
