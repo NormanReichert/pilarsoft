@@ -76,48 +76,88 @@ function DiagramMomento({
             strokeWidth={GRAPH_CONFIG.lineWidth}
           />
 
-          {/* Área hachurada */}
-          {(!travamentos || !direcao || !travamentos.some(t => t.direcao === direcao)) ? (
-            /* Área com M2d global quando não há travamentos */
-            <path
-              d={`
-                M ${axisX} ${yTop}
-                L ${xTop} ${yTop}
-                L ${xM2d} ${yMid}
-                L ${xBot} ${yBot}
-                L ${axisX} ${yBot}
-                Z
-              `}
-              fill={THEME.msd.fill}
-              stroke={THEME.msd.stroke}
-              strokeWidth={1}
-            />
-          ) : (
-            /* Área direta quando há travamentos */
-            <path
-              d={`
-                M ${axisX} ${yTop}
-                L ${xTop} ${yTop}
-                L ${xBot} ${yBot}
-                L ${axisX} ${yBot}
-                Z
-              `}
-              fill={THEME.msd.fill}
-              stroke={THEME.msd.stroke}
-              strokeWidth={1}
-            />
-          )}
-
-          {/* Linha direta entre topo e base */}
-          <line
-            x1={xTop}
-            y1={yTop}
-            x2={xBot}
-            y2={yBot}
-            stroke={THEME.msd.stroke}
-            strokeWidth={1}
-            strokeDasharray="4,4"
-          />
+          {/* Área hachurada e linha do diagrama */}
+          {(() => {
+            // Coletar todos os pontos do diagrama
+            const pontos = [];
+            
+            // Ponto do topo
+            pontos.push({ y: yTop, x: xTop, coordenada: alturaPilar || GRAPH_CONFIG.height });
+            
+            // Pontos dos travamentos (se houver)
+            if (travamentos && direcao && alturaPilar) {
+              travamentos
+                .filter(t => t.direcao === direcao)
+                .forEach(travamento => {
+                  const yTrav = yBot - (yBot - yTop) * (travamento.coordenada / alturaPilar);
+                  // Momento superior
+                  const xMomentoSup = axisX + travamento.momentoSuperior * k;
+                  pontos.push({ y: yTrav, x: xMomentoSup, coordenada: travamento.coordenada });
+                  // Momento inferior
+                  const xMomentoInf = axisX + travamento.momentoInferior * k;
+                  pontos.push({ y: yTrav, x: xMomentoInf, coordenada: travamento.coordenada });
+                });
+            }
+            
+            // Pontos M2d por segmento (se houver travamentos)
+            if (travamentos && direcao && travamentos.some(t => t.direcao === direcao) && m2dPoints && alturaPilar) {
+              m2dPoints.forEach(p => {
+                const alturaReferencia = alturaPilar || GRAPH_CONFIG.height;
+                const y = yBot - (yBot - yTop) * (p.centroCm / alturaReferencia);
+                const maiorMomentoSegmento = getMaiorMomento(p.Mtop, p.Mbase);
+                const m2dSegmentoAjustado = Math.abs(p.value) * Math.sign(maiorMomentoSegmento);
+                const x = axisX + m2dSegmentoAjustado * k;
+                pontos.push({ y, x, coordenada: p.centroCm });
+              });
+            }
+            
+            // M2d global (se não houver travamentos)
+            if (!travamentos || !direcao || !travamentos.some(t => t.direcao === direcao)) {
+              pontos.push({ y: yMid, x: xM2d, coordenada: (alturaPilar || GRAPH_CONFIG.height) / 2 });
+            }
+            
+            // Ponto da base
+            pontos.push({ y: yBot, x: xBot, coordenada: 0 });
+            
+            // Ordenar pontos por coordenada (do topo para a base)
+            pontos.sort((a, b) => b.coordenada - a.coordenada);
+            
+            // Criar path da linha do diagrama
+            const pathData = pontos.reduce((path, ponto, index) => {
+              if (index === 0) {
+                return `M ${ponto.x} ${ponto.y}`;
+              }
+              return `${path} L ${ponto.x} ${ponto.y}`;
+            }, '');
+            
+            // Criar path da área hachurada
+            const areaPathData = `
+              M ${axisX} ${yTop}
+              ${pathData.substring(1)}
+              L ${axisX} ${yBot}
+              Z
+            `;
+            
+            return (
+              <>
+                {/* Área hachurada */}
+                <path
+                  d={areaPathData}
+                  fill={THEME.msd.fill}
+                  stroke={THEME.msd.stroke}
+                  strokeWidth={1}
+                />
+                
+                {/* Linha do diagrama */}
+                <path
+                  d={pathData}
+                  fill="none"
+                  stroke={THEME.msd.stroke}
+                  strokeWidth={2}
+                />
+              </>
+            );
+          })()}
 
           {/* Pontos nos momentos */}
           <circle cx={xTop} cy={yTop} r={4} fill={THEME.msd.stroke} />
@@ -195,7 +235,7 @@ function DiagramMomento({
                   <circle
                     cx={axisX}
                     cy={yTrav}
-                    r={5}
+                    r={4}
                     fill={direcao === 'x' ? '#2563eb' : '#dc2626'}
                     stroke="white"
                     strokeWidth={2}

@@ -246,7 +246,11 @@ export default function KappaCalc() {
                     gap: GRAPH_CONFIG.gap, // usar gap configurado
                     minWidth: 1200
                   }}>
-                    <DiagramNsd nsd={solve.Nsd} />
+                    <DiagramNsd 
+                      nsd={solve.Nsd} 
+                      travamentos={inputs.travamentos}
+                      alturaPilar={inputs.h}
+                    />
                     <DiagramMomento
                       title="Msd, x (kN·m)"
                       top={solve.Msd_tx}
