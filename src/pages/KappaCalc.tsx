@@ -214,28 +214,64 @@ export default function KappaCalc() {
           {tab === "resultados" && (
             // Lado a lado fixo: 3 colunas; scroll horizontal se faltar espaço
             <div style={{ overflowX: "auto", border: `1px solid ${THEME.border}`, borderRadius: 10, padding: 12 }}>
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 420px)",
-                gap: GRAPH_CONFIG.gap, // usar gap configurado
-                minWidth: 1200
-              }}>
-                <DiagramNsd nsd={solve.Nsd} />
-                <DiagramMomento
-                  title="Msd, x (kN·m)"
-                  top={solve.Msd_tx}
-                  bottom={solve.Msd_bx}
-                  m2d={Number.isFinite(solve.resKappax?.Msdx_tot) ? solve.resKappax.Msdx_tot : undefined}
-                  m2dPoints={solve.segmentos_x?.filter(s => s.M2d !== null).map(s => ({ centroCm: s.centro, value: s.M2d as number }))}
-                />
-                <DiagramMomento
-                  title="Msd, y (kN·m)"
-                  top={solve.Msd_ty}
-                  bottom={solve.Msd_by}
-                  m2d={Number.isFinite(solve.resKappay?.Msdy_tot) ? solve.resKappay.Msdy_tot : undefined}
-                  m2dPoints={solve.segmentos_y?.filter(s => s.M2d !== null).map(s => ({ centroCm: s.centro, value: s.M2d as number }))}
-                />
-              </div>
+              {(() => {
+                // Calcular escala global para manter consistência entre diagramas X e Y
+                const todosValores = [
+                  Math.abs(solve.Msd_tx), Math.abs(solve.Msd_bx),
+                  Math.abs(solve.Msd_ty), Math.abs(solve.Msd_by)
+                ];
+                
+                // Incluir M2d global se existir
+                if (Number.isFinite(solve.resKappax?.Msdx_tot)) {
+                  todosValores.push(Math.abs(solve.resKappax.Msdx_tot));
+                }
+                if (Number.isFinite(solve.resKappay?.Msdy_tot)) {
+                  todosValores.push(Math.abs(solve.resKappay.Msdy_tot));
+                }
+                
+                // Incluir valores M2d por segmento
+                solve.segmentos_x?.forEach(s => {
+                  if (s.M2d !== null) todosValores.push(Math.abs(s.M2d));
+                });
+                solve.segmentos_y?.forEach(s => {
+                  if (s.M2d !== null) todosValores.push(Math.abs(s.M2d));
+                });
+                
+                const escalaGlobal = Math.max(1, ...todosValores);
+                
+                return (
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, 420px)",
+                    gap: GRAPH_CONFIG.gap, // usar gap configurado
+                    minWidth: 1200
+                  }}>
+                    <DiagramNsd nsd={solve.Nsd} />
+                    <DiagramMomento
+                      title="Msd, x (kN·m)"
+                      top={solve.Msd_tx}
+                      bottom={solve.Msd_bx}
+                      m2d={Number.isFinite(solve.resKappax?.Msdx_tot) ? solve.resKappax.Msdx_tot : undefined}
+                      m2dPoints={solve.segmentos_x?.filter(s => s.M2d !== null).map(s => ({ centroCm: s.centro, value: s.M2d as number, Mbase: s.Mbase, Mtop: s.Mtop }))}
+                      travamentos={inputs.travamentos}
+                      alturaPilar={inputs.h}
+                      direcao="x"
+                      escalaGlobal={escalaGlobal}
+                    />
+                    <DiagramMomento
+                      title="Msd, y (kN·m)"
+                      top={solve.Msd_ty}
+                      bottom={solve.Msd_by}
+                      m2d={Number.isFinite(solve.resKappay?.Msdy_tot) ? solve.resKappay.Msdy_tot : undefined}
+                      m2dPoints={solve.segmentos_y?.filter(s => s.M2d !== null).map(s => ({ centroCm: s.centro, value: s.M2d as number, Mbase: s.Mbase, Mtop: s.Mtop }))}
+                      travamentos={inputs.travamentos}
+                      alturaPilar={inputs.h}
+                      direcao="y"
+                      escalaGlobal={escalaGlobal}
+                    />
+                  </div>
+                );
+              })()}
             </div>
           )}
 

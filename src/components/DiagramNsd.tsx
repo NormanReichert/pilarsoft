@@ -3,7 +3,7 @@ import TextLabel from "./TextLabel";
 
 export const GRAPH_CONFIG = {
   gap: 60,        // espaçamento entre gráficos
-  scale: .5,      // escala horizontal dos gráficos
+  scale: .8,      // escala horizontal dos gráficos
   lineWidth: 2,   // espessura da linha do pilar
   height: 400     // nova altura dos containers (era 300)
 };
