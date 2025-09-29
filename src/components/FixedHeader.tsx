@@ -2,12 +2,12 @@ import { THEME } from "../config/theme";
 
 
 export const HEADER_H = 82; // altura do header fixo
-export type TabKey = "entrada" | "resultados" | "brutos" | "diagrama";
+export type TabKey = "entrada" | "resultados" | "memoria" | "diagrama";
 const TABS: { k: TabKey; t: string }[] = [
   { k: "entrada", t: "Dados de entrada" },
   { k: "resultados", t: "Resultados" },
   { k: "diagrama", t: "Diagrama de interação" },
-  { k: "brutos", t: "Dados brutos" },
+  { k: "memoria", t: "Memória de cálculo" },
 ];
 
 function FixedHeader({

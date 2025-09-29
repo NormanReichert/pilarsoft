@@ -1,5 +1,5 @@
 // KappaCalc.tsx — Header fixo full-width (título+abas), tema escuro,
-// gráficos lado a lado, rótulos próximos e "Dados brutos" em duas tabelas.
+// gráficos lado a lado, rótulos próximos e "Memória de cálculo" em duas tabelas.
 
 import { useEffect, useState } from "react";
 import {
@@ -17,7 +17,6 @@ import Row from "../components/Row";
 import TravamentosManager from "../components/TravamentoManager";
 import DiagramNsd, { GRAPH_CONFIG } from "../components/DiagramNsd";
 import DiagramMomento from "../components/DiagramMomento";
-import TableKV from "../components/TabelaKV";
 
 
 const num = (v: any) => {
@@ -279,48 +278,8 @@ export default function KappaCalc() {
             </div>
           )}
 
-          {tab === "brutos" && (
+          {tab === "memoria" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
-              {/* Tabelas principais lado a lado */}
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr", // força duas colunas de mesmo tamanho
-                gap: 150, // aumenta o espaço entre as tabelas
-                maxWidth: 900, // limita a largura máxima do container
-                marginTop: -135 // centraliza o container GAMBIARRA
-              }}>
-                <TableKV
-                  title="VALORES EM TORNO DE X"
-                  rows={[
-                    ["Msd,tx", solve.Msd_tx, "kN·m"],
-                    ["Msd,bx", solve.Msd_bx, "kN·m"],
-                    ["M1dminxx", solve.M1dminxx, "kN·m"],
-                    ["λx", solve.lamda_x, "-"],
-                    ["λ1x", solve.lamda1_x, "-"],
-                    ["αb,x", solve.alfa_bx, "-"],
-                    ["MAx", solve.MAx, "kN·m"],
-                    ["MBx", solve.MBx, "kN·m"],
-                    ["κx", Number.isFinite(solve.resKappax.kappax) ? solve.resKappax.kappax : Number.NaN, "-"],
-                    ["M2d,x", Number.isFinite(solve.resKappax.Msdx_tot) ? solve.resKappax.Msdx_tot : Number.NaN, "kN·m"],
-                  ]}
-                />
-                <TableKV
-                  title="VALORES EM TORNO DE Y"
-                  rows={[
-                    ["Msd,ty", solve.Msd_ty, "kN·m"],
-                    ["Msd,by", solve.Msd_by, "kN·m"],
-                    ["M1dminyy", solve.M1dminyy, "kN·m"],
-                    ["λy", solve.lamda_y, "-"],
-                    ["λ1y", solve.lamda1_y, "-"],
-                    ["αb,y", solve.alfa_by, "-"],
-                    ["MAy", solve.MAy, "kN·m"],
-                    ["MBy", solve.MBy, "kN·m"],
-                    ["κy", Number.isFinite(solve.resKappay.kappay) ? solve.resKappay.kappay : Number.NaN, "-"],
-                    ["M2d,y", Number.isFinite(solve.resKappay.Msdy_tot) ? solve.resKappay.Msdy_tot : Number.NaN, "kN·m"],
-                  ]}
-                />
-              </div>
-
               {/* Tabelas de segmentos */}
               <div style={{
                 display: "grid",
@@ -337,7 +296,7 @@ export default function KappaCalc() {
                     fontSize: 16,
                     color: THEME.pageText
                   }}>
-                    SEGMENTOS DIREÇÃO X
+                    MOMENTOS EM TORNO DE X
                   </div>
                   {solve.segmentos_x?.length > 0 ? (
                     <table style={{
@@ -464,7 +423,7 @@ export default function KappaCalc() {
                     fontSize: 16,
                     color: THEME.pageText
                   }}>
-                    SEGMENTOS DIREÇÃO Y
+                    MOMENTOS EM TORNO DE Y
                   </div>
                   {solve.segmentos_y?.length > 0 ? (
                     <table style={{
