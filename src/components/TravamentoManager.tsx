@@ -1,6 +1,7 @@
 import type { Travamento } from "../compute";
 import { THEME } from "../config/theme";
 import SegmentosPilarVisualizacao from "./SegmentosPilarVisualizacao";
+import TravamentoInput from "./TravamentoInput";
 
 function TravamentosManager({
   travamentos,
@@ -95,7 +96,7 @@ function TravamentosManager({
               {travamentosX.map(travamento => (
                 <div key={travamento.id} style={{
                   display: 'grid',
-                  gridTemplateColumns: '1fr 1fr 1fr auto',
+                  gridTemplateColumns: '1fr 1fr 1fr 1fr auto',
                   alignItems: 'center',
                   gap: 8,
                   marginBottom: 8,
@@ -103,80 +104,32 @@ function TravamentosManager({
                   background: '#1e293b',
                   borderRadius: 6,
                 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Coordenada (cm)</span>
-                    <input
-                      type="number"
-                      value={travamento.coordenada}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'coordenada', Number(e.target.value))}
-                      min={0}
-                      max={alturaTotal}
-                      step={1}
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        border: '1px solid #475569',
-                        borderRadius: 4,
-                        background: '#0b1220',
-                        color: THEME.pageText,
-                        fontSize: 12,
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Compressão (kN)</span>
-                    <input
-                      type="number"
-                      value={travamento.compressao}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'compressao', Number(e.target.value))}
-                      step={0.1}
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        border: '1px solid #475569',
-                        borderRadius: 4,
-                        background: '#0b1220',
-                        color: THEME.pageText,
-                        fontSize: 12,
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento Superior (kN·m)</span>
-                    <input
-                      type="number"
-                      value={travamento.momentoSuperior}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'momentoSuperior', Number(e.target.value))}
-                      step={0.1}
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        border: '1px solid #475569',
-                        borderRadius: 4,
-                        background: '#0b1220',
-                        color: THEME.pageText,
-                        fontSize: 12,
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento Inferior (kN·m)</span>
-                    <input
-                      type="number"
-                      value={travamento.momentoInferior}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'momentoInferior', Number(e.target.value))}
-                      step={0.1}
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        border: '1px solid #475569',
-                        borderRadius: 4,
-                        background: '#0b1220',
-                        color: THEME.pageText,
-                        fontSize: 12,
-                      }}
-                    />
-                  </div>
+                  <TravamentoInput
+                    label="Coordenada (cm)"
+                    value={travamento.coordenada}
+                    onChange={(value) => atualizarTravamento(travamento.id, 'coordenada', value)}
+                    min={0}
+                    max={alturaTotal}
+                    step={1}
+                  />
+                  <TravamentoInput
+                    label="Compressão (kN)"
+                    value={travamento.compressao}
+                    onChange={(value) => atualizarTravamento(travamento.id, 'compressao', value)}
+                    step={0.1}
+                  />
+                  <TravamentoInput
+                    label="Momento Superior (kN·m)"
+                    value={travamento.momentoSuperior}
+                    onChange={(value) => atualizarTravamento(travamento.id, 'momentoSuperior', value)}
+                    step={0.1}
+                  />
+                  <TravamentoInput
+                    label="Momento Inferior (kN·m)"
+                    value={travamento.momentoInferior}
+                    onChange={(value) => atualizarTravamento(travamento.id, 'momentoInferior', value)}
+                    step={0.1}
+                  />
                   <button
                     onClick={() => removerTravamento(travamento.id)}
                     style={{
@@ -192,6 +145,9 @@ function TravamentosManager({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      alignSelf: 'end',
+                      lineHeight: 1,
+                      fontWeight: 'bold',
                     }}
                   >
                     ×
@@ -215,7 +171,7 @@ function TravamentosManager({
               {travamentosY.map(travamento => (
                 <div key={travamento.id} style={{
                   display: 'grid',
-                  gridTemplateColumns: '1fr 1fr 1fr auto',
+                  gridTemplateColumns: '1fr 1fr 1fr 1fr auto',
                   alignItems: 'center',
                   gap: 8,
                   marginBottom: 8,
@@ -223,80 +179,32 @@ function TravamentosManager({
                   background: '#1e293b',
                   borderRadius: 6,
                 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Coordenada (cm)</span>
-                    <input
-                      type="number"
-                      value={travamento.coordenada}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'coordenada', Number(e.target.value))}
-                      min={0}
-                      max={alturaTotal}
-                      step={1}
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        border: '1px solid #475569',
-                        borderRadius: 4,
-                        background: '#0b1220',
-                        color: THEME.pageText,
-                        fontSize: 12,
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Compressão (kN)</span>
-                    <input
-                      type="number"
-                      value={travamento.compressao}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'compressao', Number(e.target.value))}
-                      step={0.1}
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        border: '1px solid #475569',
-                        borderRadius: 4,
-                        background: '#0b1220',
-                        color: THEME.pageText,
-                        fontSize: 12,
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento Superior (kN·m)</span>
-                    <input
-                      type="number"
-                      value={travamento.momentoSuperior}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'momentoSuperior', Number(e.target.value))}
-                      step={0.1}
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        border: '1px solid #475569',
-                        borderRadius: 4,
-                        background: '#0b1220',
-                        color: THEME.pageText,
-                        fontSize: 12,
-                      }}
-                    />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: THEME.subtle }}>Momento Inferior (kN·m)</span>
-                    <input
-                      type="number"
-                      value={travamento.momentoInferior}
-                      onChange={(e) => atualizarTravamento(travamento.id, 'momentoInferior', Number(e.target.value))}
-                      step={0.1}
-                      style={{
-                        width: '100%',
-                        padding: '4px 6px',
-                        border: '1px solid #475569',
-                        borderRadius: 4,
-                        background: '#0b1220',
-                        color: THEME.pageText,
-                        fontSize: 12,
-                      }}
-                    />
-                  </div>
+                  <TravamentoInput
+                    label="Coordenada (cm)"
+                    value={travamento.coordenada}
+                    onChange={(value) => atualizarTravamento(travamento.id, 'coordenada', value)}
+                    min={0}
+                    max={alturaTotal}
+                    step={1}
+                  />
+                  <TravamentoInput
+                    label="Compressão (kN)"
+                    value={travamento.compressao}
+                    onChange={(value) => atualizarTravamento(travamento.id, 'compressao', value)}
+                    step={0.1}
+                  />
+                  <TravamentoInput
+                    label="Momento Superior (kN·m)"
+                    value={travamento.momentoSuperior}
+                    onChange={(value) => atualizarTravamento(travamento.id, 'momentoSuperior', value)}
+                    step={0.1}
+                  />
+                  <TravamentoInput
+                    label="Momento Inferior (kN·m)"
+                    value={travamento.momentoInferior}
+                    onChange={(value) => atualizarTravamento(travamento.id, 'momentoInferior', value)}
+                    step={0.1}
+                  />
                   <button
                     onClick={() => removerTravamento(travamento.id)}
                     style={{
@@ -312,6 +220,9 @@ function TravamentosManager({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      alignSelf: 'end',
+                      lineHeight: 1,
+                      fontWeight: 'bold',
                     }}
                   >
                     ×

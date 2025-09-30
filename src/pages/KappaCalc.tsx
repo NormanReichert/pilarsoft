@@ -279,7 +279,7 @@ export default function KappaCalc() {
           )}
 
           {tab === "memoria" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 40, marginTop: -260 }}>
               {/* Tabelas de segmentos */}
               <div style={{
                 display: "grid",
