@@ -550,14 +550,563 @@ export default function KappaCalc() {
               background: THEME.canvasBg,
               borderRadius: 10,
               padding: 24,
-              minHeight: 400 // para dar uma altura mínima ao container vazio
+              minHeight: 400
             }}>
-              {/* Conteúdo futuro virá aqui */}
-            </div>
-          )}
-        </>
-      }
+              {/* Layout lado a lado: Gráfico à esquerda, Tabela à direita */}
+              <div style={{
+                display: 'flex',
+                gap: 40,
+                alignItems: 'flex-start'
+              }}>
+                {/* Gráfico Cartesiano à esquerda */}
+                <div style={{ flex: '0 0 auto' }}>
+                  <div style={{
+                    fontWeight: 700,
+                    marginBottom: 20,
+                    fontSize: 16,
+                    color: THEME.pageText,
+                    textAlign: 'center'
+                  }}>
+                    DIAGRAMA DE INTERAÇÃO Msd,x × Msd,y
+                  </div>
+                  
+                  {(() => {
+                    // Coletar pontos para o gráfico (reutilizar lógica da tabela)
+                    const pontosCriticos: Array<{coord: number, tipo: 'extremidade' | 'travamento_sup' | 'travamento_inf' | 'm2d', label?: string}> = [];
+                    
+                    // Adicionar extremidades
+                    pontosCriticos.push({coord: 0, tipo: 'extremidade', label: 'Base'});
+                    pontosCriticos.push({coord: num(inputs.h), tipo: 'extremidade', label: 'Topo'});
+                    
+                    // Adicionar travamentos (superior e inferior)
+                    const coordenadasTravamentos = [...new Set(inputs.travamentos.map((t: any) => t.coordenada))];
+                    coordenadasTravamentos.forEach(coord => {
+                      pontosCriticos.push({coord, tipo: 'travamento_sup', label: `Trav.Sup`});
+                      pontosCriticos.push({coord, tipo: 'travamento_inf', label: `Trav.Inf`});
+                    });
+                    
+                    // Adicionar pontos M2d dos segmentos
+                    if (solve.segmentos_x) {
+                      solve.segmentos_x.forEach(seg => {
+                        const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                        pontosCriticos.push({coord: coordM2d, tipo: 'm2d', label: `M2d,x`});
+                      });
+                    }
+                    if (solve.segmentos_y) {
+                      solve.segmentos_y.forEach(seg => {
+                        const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                        const jaExiste = pontosCriticos.some(p => p.tipo === 'm2d' && Math.abs(p.coord - coordM2d) < 0.1);
+                        if (!jaExiste) {
+                          pontosCriticos.push({coord: coordM2d, tipo: 'm2d', label: `M2d,y`});
+                        }
+                      });
+                    }
+                    
+                    // Função de interpolação
+                    const interpolarMomento = (coord: number, segmentos: any[]) => {
+                      const segmento = segmentos.find(seg => coord >= seg.inicio && coord <= seg.fim);
+                      if (!segmento) return 0;
+                      
+                      const coordM2d = segmento.inicio + (segmento.fim - segmento.inicio) / 2;
+                      const M2d = Number.isFinite(segmento.M2d) && segmento.M2d !== null ? segmento.M2d : null;
+                      
+                      if (M2d === null) {
+                        const fator = (coord - segmento.inicio) / (segmento.fim - segmento.inicio);
+                        return segmento.Mbase + fator * (segmento.Mtop - segmento.Mbase);
+                      }
+                      
+                      if (coord <= coordM2d) {
+                        const fator = (coord - segmento.inicio) / (coordM2d - segmento.inicio);
+                        return segmento.Mbase + fator * (M2d - segmento.Mbase);
+                      } else {
+                        const fator = (coord - coordM2d) / (segmento.fim - coordM2d);
+                        return M2d + fator * (segmento.Mtop - M2d);
+                      }
+                    };
+                    
+                    // Calcular pontos do gráfico
+                    const pontosGrafico = pontosCriticos.map(ponto => {
+                      let MsdX = 0;
+                      let MsdY = 0;
+                      const coord = ponto.coord;
+                      
+                      if (ponto.tipo === 'extremidade' && coord === 0) {
+                        MsdX = solve.Msd_bx || 0;
+                        MsdY = solve.Msd_by || 0;
+                      } else if (ponto.tipo === 'extremidade' && coord === num(inputs.h)) {
+                        MsdX = solve.Msd_tx || 0;
+                        MsdY = solve.Msd_ty || 0;
+                      } else if (ponto.tipo === 'travamento_sup' || ponto.tipo === 'travamento_inf') {
+                        const travamentoX = inputs.travamentos.find((t: any) => t.coordenada === coord && t.direcao === 'x');
+                        const travamentoY = inputs.travamentos.find((t: any) => t.coordenada === coord && t.direcao === 'y');
+                        
+                        let M2dCoincidenteX = null;
+                        let M2dCoincidenteY = null;
+                        
+                        if (solve.segmentos_x) {
+                          const segX = solve.segmentos_x.find(seg => {
+                            const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                            return Math.abs(coordM2d - coord) < 0.1;
+                          });
+                          if (segX && Number.isFinite(segX.M2d) && segX.M2d !== null) {
+                            M2dCoincidenteX = segX.M2d;
+                          }
+                        }
+                        
+                        if (solve.segmentos_y) {
+                          const segY = solve.segmentos_y.find(seg => {
+                            const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                            return Math.abs(coordM2d - coord) < 0.1;
+                          });
+                          if (segY && Number.isFinite(segY.M2d) && segY.M2d !== null) {
+                            M2dCoincidenteY = segY.M2d;
+                          }
+                        }
+                        
+                        if (ponto.tipo === 'travamento_sup') {
+                          MsdX = travamentoX ? travamentoX.momentoSuperior : (M2dCoincidenteX !== null ? M2dCoincidenteX : 0);
+                          MsdY = travamentoY ? travamentoY.momentoSuperior : (M2dCoincidenteY !== null ? M2dCoincidenteY : 0);
+                        } else {
+                          MsdX = travamentoX ? travamentoX.momentoInferior : (M2dCoincidenteX !== null ? M2dCoincidenteX : 0);
+                          MsdY = travamentoY ? travamentoY.momentoInferior : (M2dCoincidenteY !== null ? M2dCoincidenteY : 0);
+                        }
+                      } else if (ponto.tipo === 'm2d') {
+                        let isM2dX = false;
+                        let isM2dY = false;
+                        
+                        if (solve.segmentos_x) {
+                          const segX = solve.segmentos_x.find(seg => {
+                            const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                            return Math.abs(coordM2d - coord) < 0.1;
+                          });
+                          if (segX && Number.isFinite(segX.M2d) && segX.M2d !== null) {
+                            MsdX = segX.M2d;
+                            isM2dX = true;
+                          }
+                        }
+                        
+                        if (solve.segmentos_y) {
+                          const segY = solve.segmentos_y.find(seg => {
+                            const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                            return Math.abs(coordM2d - coord) < 0.1;
+                          });
+                          if (segY && Number.isFinite(segY.M2d) && segY.M2d !== null) {
+                            MsdY = segY.M2d;
+                            isM2dY = true;
+                          }
+                        }
+                        
+                        if (isM2dX && !isM2dY && solve.segmentos_y) {
+                          MsdY = interpolarMomento(coord, solve.segmentos_y);
+                        }
+                        if (isM2dY && !isM2dX && solve.segmentos_x) {
+                          MsdX = interpolarMomento(coord, solve.segmentos_x);
+                        }
+                        
+                        if (!isM2dX && !isM2dY) {
+                          if (solve.segmentos_x) MsdX = interpolarMomento(coord, solve.segmentos_x);
+                          if (solve.segmentos_y) MsdY = interpolarMomento(coord, solve.segmentos_y);
+                        }
+                      }
+                      
+                      return {
+                        x: MsdX,
+                        y: MsdY,
+                        label: ponto.label,
+                        tipo: ponto.tipo,
+                        coord: coord  // Adicionar coordenada (altura)
+                      };
+                    }).filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+                    
+                    // Configurações do gráfico
+                    const width = 600;
+                    const height = 500;
+                    const margin = 60;
+                    const plotWidth = width - 2 * margin;
+                    const plotHeight = height - 2 * margin;
+                    
+                    // Calcular escalas
+                    const allX = pontosGrafico.map(p => p.x);
+                    const allY = pontosGrafico.map(p => p.y);
+                    const minX = Math.min(...allX, 0);
+                    const maxX = Math.max(...allX, 0);
+                    const minY = Math.min(...allY, 0);
+                    const maxY = Math.max(...allY, 0);
+                    
+                    const rangeX = Math.max(Math.abs(minX), Math.abs(maxX));
+                    const rangeY = Math.max(Math.abs(minY), Math.abs(maxY));
+                    const scale = Math.max(rangeX, rangeY) * 1.1; // 10% de margem
+                    
+                    const scaleX = (x: number) => margin + (x + scale) * plotWidth / (2 * scale);
+                    const scaleY = (y: number) => height - margin - (y + scale) * plotHeight / (2 * scale);
+                    
+                    return (
+                      <svg width={width} height={height} style={{ border: '1px solid ' + THEME.border, borderRadius: 8 }}>
+                        {/* Fundo */}
+                        <rect width={width} height={height} fill={THEME.canvasBg} />
+                        
+                        {/* Grid pontilhado */}
+                        {(() => {
+                          // Gerar grid de 10 em 10 (excluindo o zero que são os eixos principais)
+                          const maxScale = Math.ceil(scale / 10) * 10;
+                          const gridValues = [];
+                          for (let val = -maxScale; val <= maxScale; val += 10) {
+                            if (val !== 0) { // Excluir 0 porque são os eixos principais
+                              gridValues.push(val);
+                            }
+                          }
+                          return gridValues.map(val => (
+                            <g key={`grid-${val}`}>
+                              {/* Linhas verticais do grid - estendidas até as últimas marcações */}
+                              <line x1={scaleX(val)} y1={scaleY(maxScale)} x2={scaleX(val)} y2={scaleY(-maxScale)} 
+                                    stroke={THEME.subtle} strokeWidth={0.5} strokeDasharray="2,2" opacity={0.5} />
+                              {/* Linhas horizontais do grid - estendidas até as últimas marcações */}
+                              <line x1={scaleX(-maxScale)} y1={scaleY(val)} x2={scaleX(maxScale)} y2={scaleY(val)} 
+                                    stroke={THEME.subtle} strokeWidth={0.5} strokeDasharray="2,2" opacity={0.5} />
+                            </g>
+                          ));
+                        })()}
+                        
+                        {/* Eixos principais (0,0) - estendidos até as últimas marcações */}
+                        {(() => {
+                          const maxScale = Math.ceil(scale / 10) * 10;
+                          return (
+                            <>
+                              {/* Eixo vertical (Y) estendido */}
+                              <line x1={scaleX(0)} y1={scaleY(maxScale)} x2={scaleX(0)} y2={scaleY(-maxScale)} 
+                                    stroke={THEME.pageText} strokeWidth={1.5} />
+                              {/* Eixo horizontal (X) estendido */}
+                              <line x1={scaleX(-maxScale)} y1={scaleY(0)} x2={scaleX(maxScale)} y2={scaleY(0)} 
+                                    stroke={THEME.pageText} strokeWidth={1.5} />
+                            </>
+                          );
+                        })()}
+                        
+                        {/* Labels dos eixos */}
+                        <text x={width / 2} y={height - 10} textAnchor="middle" fill={THEME.pageText} fontSize={14} fontWeight="600">
+                          Msd,x (kN·m)
+                        </text>
+                        <text x={15} y={height / 2} textAnchor="middle" fill={THEME.pageText} fontSize={14} fontWeight="600"
+                              transform={`rotate(-90, 15, ${height / 2})`}>
+                          Msd,y (kN·m)
+                        </text>
+                        
+                        {/* Escalas X */}
+                        {(() => {
+                          // Gerar escalas de 10 em 10
+                          const maxScale = Math.ceil(scale / 10) * 10; // Arredondar para múltiplo de 10
+                          const scaleValues = [];
+                          for (let val = -maxScale; val <= maxScale; val += 10) {
+                            scaleValues.push(val);
+                          }
+                          return scaleValues.map(val => (
+                            <g key={`scale-x-${val}`}>
+                              <line x1={scaleX(val)} y1={scaleY(0) - 5} x2={scaleX(val)} y2={scaleY(0) + 5} 
+                                    stroke={THEME.pageText} strokeWidth={1} />
+                              <text x={scaleX(val)} y={scaleY(0) + 18} textAnchor="middle" fill={THEME.pageText} fontSize={10}>
+                                {val}
+                              </text>
+                            </g>
+                          ));
+                        })()}
+                        
+                        {/* Escalas Y */}
+                        {(() => {
+                          // Gerar escalas de 10 em 10
+                          const maxScale = Math.ceil(scale / 10) * 10; // Arredondar para múltiplo de 10
+                          const scaleValues = [];
+                          for (let val = -maxScale; val <= maxScale; val += 10) {
+                            scaleValues.push(val);
+                          }
+                          return scaleValues.map(val => (
+                            <g key={`scale-y-${val}`}>
+                              <line x1={scaleX(0) - 5} y1={scaleY(val)} x2={scaleX(0) + 5} y2={scaleY(val)} 
+                                    stroke={THEME.pageText} strokeWidth={1} />
+                              <text x={scaleX(0) - 10} y={scaleY(val) + 4} textAnchor="end" fill={THEME.pageText} fontSize={10}>
+                                {val}
+                              </text>
+                            </g>
+                          ));
+                        })()}
+                        
+                        {/* Pontos */}
+                        {pontosGrafico.map((ponto, index) => (
+                          <g key={index}>
+                            <circle 
+                              cx={scaleX(ponto.x)} 
+                              cy={scaleY(ponto.y)} 
+                              r={4} 
+                              fill="#3b82f6"
+                              stroke="white"
+                              strokeWidth={2}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <title>
+                              {`Altura: ${ponto.coord.toFixed(1)} cm\nMsd,x: ${ponto.x.toFixed(2)} kN·m\nMsd,y: ${ponto.y.toFixed(2)} kN·m`}
+                            </title>
+                          </g>
+                        ))}
+                      </svg>
+                    );
+                  })()}
+                </div>
+                
+                {/* Tabela à direita */}
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    fontWeight: 700,
+                    marginBottom: 20,
+                    fontSize: 16,
+                    color: THEME.pageText
+                  }}>
+                    PARES DE MOMENTOS PARA DIAGRAMA DE INTERAÇÃO
+                  </div>
+              
+              {(() => {
+                // Função para interpolar momentos considerando M2d
+                const interpolarMomento = (coord: number, segmentos: any[]) => {
+                  // Encontrar segmento que contém a coordenada
+                  const segmento = segmentos.find(seg => coord >= seg.inicio && coord <= seg.fim);
+                  if (!segmento) return 0;
+                  
+                  const coordM2d = segmento.inicio + (segmento.fim - segmento.inicio) / 2;
+                  const M2d = Number.isFinite(segmento.M2d) && segmento.M2d !== null ? segmento.M2d : null;
+                  
+                  // Se não há M2d válido, usar interpolação linear simples
+                  if (M2d === null) {
+                    const fator = (coord - segmento.inicio) / (segmento.fim - segmento.inicio);
+                    return segmento.Mbase + fator * (segmento.Mtop - segmento.Mbase);
+                  }
+                  
+                  // Interpolação considerando M2d no meio do segmento
+                  if (coord <= coordM2d) {
+                    // Entre base e M2d
+                    const fator = (coord - segmento.inicio) / (coordM2d - segmento.inicio);
+                    return segmento.Mbase + fator * (M2d - segmento.Mbase);
+                  } else {
+                    // Entre M2d e topo
+                    const fator = (coord - coordM2d) / (segmento.fim - coordM2d);
+                    return M2d + fator * (segmento.Mtop - M2d);
+                  }
+                };
 
-    </div>
+                // Coletar pontos críticos
+                const pontosCriticos: Array<{coord: number, tipo: 'extremidade' | 'travamento_sup' | 'travamento_inf' | 'm2d', label?: string}> = [];
+                
+                // Adicionar extremidades
+                pontosCriticos.push({coord: 0, tipo: 'extremidade', label: 'Base'});
+                pontosCriticos.push({coord: num(inputs.h), tipo: 'extremidade', label: 'Topo'});
+                
+                // Adicionar travamentos (superior e inferior)
+                const coordenadasTravamentos = [...new Set(inputs.travamentos.map((t: any) => t.coordenada))];
+                coordenadasTravamentos.forEach(coord => {
+                  pontosCriticos.push({coord, tipo: 'travamento_sup', label: `Trav.Sup (${coord}cm)`});
+                  pontosCriticos.push({coord, tipo: 'travamento_inf', label: `Trav.Inf (${coord}cm)`});
+                });
+                
+                // Adicionar pontos M2d dos segmentos
+                if (solve.segmentos_x) {
+                  solve.segmentos_x.forEach(seg => {
+                    const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2; // meio do segmento para M2d
+                    pontosCriticos.push({coord: coordM2d, tipo: 'm2d', label: `M2d,x (${coordM2d.toFixed(1)}cm)`});
+                  });
+                }
+                if (solve.segmentos_y) {
+                  solve.segmentos_y.forEach(seg => {
+                    const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2; // meio do segmento para M2d
+                    // Evitar duplicar se já existe M2d,x na mesma coordenada
+                    const jaExiste = pontosCriticos.some(p => p.tipo === 'm2d' && Math.abs(p.coord - coordM2d) < 0.1);
+                    if (!jaExiste) {
+                      pontosCriticos.push({coord: coordM2d, tipo: 'm2d', label: `M2d,y (${coordM2d.toFixed(1)}cm)`});
+                    }
+                  });
+                }
+                
+                // Ordenar pontos críticos por coordenada (do topo para base)
+                pontosCriticos.sort((a, b) => b.coord - a.coord);
+                
+                // Calcular pares de momentos
+                const paresMomentos = pontosCriticos.map(ponto => {
+                  let MsdX = 0;
+                  let MsdY = 0;
+                  const coord = ponto.coord;
+                  
+                  // Verificar se é extremidade
+                  if (ponto.tipo === 'extremidade' && coord === 0) {
+                    MsdX = solve.Msd_bx || 0;
+                    MsdY = solve.Msd_by || 0;
+                  } else if (ponto.tipo === 'extremidade' && coord === num(inputs.h)) {
+                    MsdX = solve.Msd_tx || 0;
+                    MsdY = solve.Msd_ty || 0;
+                  } else if (ponto.tipo === 'travamento_sup' || ponto.tipo === 'travamento_inf') {
+                    // Verificar se há travamentos nesta coordenada
+                    const travamentoX = inputs.travamentos.find((t: any) => t.coordenada === coord && t.direcao === 'x');
+                    const travamentoY = inputs.travamentos.find((t: any) => t.coordenada === coord && t.direcao === 'y');
+                    
+                    // Verificar se a coordenada do travamento coincide com M2d na outra direção
+                    let M2dCoincidenteX = null;
+                    let M2dCoincidenteY = null;
+                    
+                    if (solve.segmentos_x) {
+                      const segX = solve.segmentos_x.find(seg => {
+                        const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                        return Math.abs(coordM2d - coord) < 0.1; // tolerância
+                      });
+                      if (segX && Number.isFinite(segX.M2d) && segX.M2d !== null) {
+                        M2dCoincidenteX = segX.M2d;
+                      }
+                    }
+                    
+                    if (solve.segmentos_y) {
+                      const segY = solve.segmentos_y.find(seg => {
+                        const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                        return Math.abs(coordM2d - coord) < 0.1; // tolerância
+                      });
+                      if (segY && Number.isFinite(segY.M2d) && segY.M2d !== null) {
+                        M2dCoincidenteY = segY.M2d;
+                      }
+                    }
+                    
+                    if (ponto.tipo === 'travamento_sup') {
+                      // Travamento superior: usar momento superior do travamento ou M2d se coincidente
+                      MsdX = travamentoX ? travamentoX.momentoSuperior : (M2dCoincidenteX !== null ? M2dCoincidenteX : 0);
+                      MsdY = travamentoY ? travamentoY.momentoSuperior : (M2dCoincidenteY !== null ? M2dCoincidenteY : 0);
+                    } else { // travamento_inf
+                      // Travamento inferior: usar momento inferior do travamento ou M2d se coincidente
+                      MsdX = travamentoX ? travamentoX.momentoInferior : (M2dCoincidenteX !== null ? M2dCoincidenteX : 0);
+                      MsdY = travamentoY ? travamentoY.momentoInferior : (M2dCoincidenteY !== null ? M2dCoincidenteY : 0);
+                    }
+                  } else if (ponto.tipo === 'm2d') {
+                    // Verificar se é ponto M2d de algum segmento
+                    let isM2dX = false;
+                    let isM2dY = false;
+                    
+                    if (solve.segmentos_x) {
+                      const segX = solve.segmentos_x.find(seg => {
+                        const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                        return Math.abs(coordM2d - coord) < 0.1; // tolerância
+                      });
+                      if (segX && Number.isFinite(segX.M2d) && segX.M2d !== null) {
+                        MsdX = segX.M2d;
+                        isM2dX = true;
+                      }
+                    }
+                    
+                    if (solve.segmentos_y) {
+                      const segY = solve.segmentos_y.find(seg => {
+                        const coordM2d = seg.inicio + (seg.fim - seg.inicio) / 2;
+                        return Math.abs(coordM2d - coord) < 0.1; // tolerância
+                      });
+                      if (segY && Number.isFinite(segY.M2d) && segY.M2d !== null) {
+                        MsdY = segY.M2d;
+                        isM2dY = true;
+                      }
+                    }
+                    
+                    // Interpolar o momento na direção que não é M2d
+                    if (isM2dX && !isM2dY && solve.segmentos_y) {
+                      MsdY = interpolarMomento(coord, solve.segmentos_y);
+                    }
+                    if (isM2dY && !isM2dX && solve.segmentos_x) {
+                      MsdX = interpolarMomento(coord, solve.segmentos_x);
+                    }
+                    
+                    // Se nenhum é M2d, interpolar ambos
+                    if (!isM2dX && !isM2dY) {
+                      if (solve.segmentos_x) MsdX = interpolarMomento(coord, solve.segmentos_x);
+                      if (solve.segmentos_y) MsdY = interpolarMomento(coord, solve.segmentos_y);
+                    }
+                  }
+                  
+                  return {
+                    coordenada: ponto.coord,
+                    MsdX: MsdX,
+                    MsdY: MsdY,
+                    label: ponto.label || `${ponto.coord.toFixed(1)}cm`
+                  };
+                });
+                
+                return (
+                  <table style={{
+                    width: '100%',
+                    maxWidth: 600,
+                    borderCollapse: 'separate',
+                    borderSpacing: '0 2px'
+                  }}>
+                    <thead>
+                      <tr style={{ background: THEME.border }}>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          color: THEME.pageText,
+                          fontSize: 14,
+                          fontWeight: 600
+                        }}>
+                          Ponto
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          color: THEME.pageText,
+                          fontSize: 14,
+                          fontWeight: 600
+                        }}>
+                          Msd,x (kN·m)
+                        </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          color: THEME.pageText,
+                          fontSize: 14,
+                          fontWeight: 600
+                        }}>
+                          Msd,y (kN·m)
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paresMomentos.map((par, index) => (
+                        <tr key={index} style={{
+                          background: index % 2 === 0 ? 'rgba(30, 41, 59, 0.3)' : 'transparent'
+                        }}>
+                          <td style={{
+                            padding: '10px 16px',
+                            textAlign: 'left',
+                            color: THEME.pageText,
+                            fontSize: 13
+                          }}>
+                            {par.label}
+                          </td>
+                          <td style={{
+                            padding: '10px 16px',
+                            textAlign: 'center',
+                            color: THEME.pageText,
+                            fontSize: 13,
+                            fontWeight: Number.isFinite(par.MsdX) ? 'normal' : 'italic'
+                          }}>
+                            {Number.isFinite(par.MsdX) ? par.MsdX.toFixed(2) : '—'}
+                          </td>
+                          <td style={{
+                            padding: '10px 16px',
+                            textAlign: 'center',
+                            color: THEME.pageText,
+                            fontSize: 13,
+                            fontWeight: Number.isFinite(par.MsdY) ? 'normal' : 'italic'
+                          }}>
+                            {Number.isFinite(par.MsdY) ? par.MsdY.toFixed(2) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  }
+  </div>
   );
 }
