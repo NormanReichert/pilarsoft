@@ -602,26 +602,78 @@ export default function KappaCalc() {
                       });
                     }
                     
-                    // Função de interpolação
-                    const interpolarMomento = (coord: number, segmentos: any[]) => {
+                    // Função de interpolação considerando M2d e travamentos
+                    const interpolarMomento = (coord: number, segmentos: any[], direcao: 'x' | 'y') => {
                       const segmento = segmentos.find(seg => coord >= seg.inicio && coord <= seg.fim);
                       if (!segmento) return 0;
                       
+                      // Coletar todos os pontos relevantes no segmento (ordenados por coordenada)
+                      const pontosSegmento = [];
+                      
+                      // Adicionar extremidades do segmento
+                      pontosSegmento.push({ coord: segmento.inicio, momento: segmento.Mbase });
+                      pontosSegmento.push({ coord: segmento.fim, momento: segmento.Mtop });
+                      
+                      // Adicionar M2d se existir - usando a mesma lógica de ajuste de sinal dos diagramas
                       const coordM2d = segmento.inicio + (segmento.fim - segmento.inicio) / 2;
                       const M2d = Number.isFinite(segmento.M2d) && segmento.M2d !== null ? segmento.M2d : null;
-                      
-                      if (M2d === null) {
-                        const fator = (coord - segmento.inicio) / (segmento.fim - segmento.inicio);
-                        return segmento.Mbase + fator * (segmento.Mtop - segmento.Mbase);
+                      if (M2d !== null) {
+                        // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                        const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                          return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                        };
+                        const maiorMomentoSegmento = getMaiorMomento(segmento.Mtop, segmento.Mbase);
+                        const m2dAjustado = Math.abs(M2d) * Math.sign(maiorMomentoSegmento);
+                        pontosSegmento.push({ coord: coordM2d, momento: m2dAjustado });
                       }
                       
-                      if (coord <= coordM2d) {
-                        const fator = (coord - segmento.inicio) / (coordM2d - segmento.inicio);
-                        return segmento.Mbase + fator * (M2d - segmento.Mbase);
-                      } else {
-                        const fator = (coord - coordM2d) / (segmento.fim - coordM2d);
-                        return M2d + fator * (segmento.Mtop - M2d);
+                      // Adicionar travamentos dentro do segmento
+                      const travamentosSegmento = inputs.travamentos.filter(t => 
+                        t.direcao === direcao && 
+                        t.coordenada > segmento.inicio && 
+                        t.coordenada < segmento.fim
+                      );
+                      
+                      travamentosSegmento.forEach(trav => {
+                        // Determinar qual momento do travamento usar baseado na posição relativa ao M2d
+                        let momentoTrav;
+                        if (M2d !== null) {
+                          // Se há M2d, usar momento superior se estiver abaixo do M2d, inferior se estiver acima
+                          if (trav.coordenada <= coordM2d) {
+                            momentoTrav = trav.momentoSuperior;
+                          } else {
+                            momentoTrav = trav.momentoInferior;
+                          }
+                        } else {
+                          // Se não há M2d, interpolar entre os momentos do travamento baseado na posição no segmento
+                          const fatorSegmento = (trav.coordenada - segmento.inicio) / (segmento.fim - segmento.inicio);
+                          momentoTrav = trav.momentoInferior + fatorSegmento * (trav.momentoSuperior - trav.momentoInferior);
+                        }
+                        pontosSegmento.push({ coord: trav.coordenada, momento: momentoTrav });
+                      });
+                      
+                      // Ordenar pontos por coordenada
+                      pontosSegmento.sort((a, b) => a.coord - b.coord);
+                      
+                      // Encontrar os dois pontos adjacentes para interpolação
+                      let pontoAnterior = pontosSegmento[0];
+                      let pontoProximo = pontosSegmento[pontosSegmento.length - 1];
+                      
+                      for (let i = 0; i < pontosSegmento.length - 1; i++) {
+                        if (coord >= pontosSegmento[i].coord && coord <= pontosSegmento[i + 1].coord) {
+                          pontoAnterior = pontosSegmento[i];
+                          pontoProximo = pontosSegmento[i + 1];
+                          break;
+                        }
                       }
+                      
+                      // Interpolação linear entre os dois pontos
+                      if (pontoAnterior.coord === pontoProximo.coord) {
+                        return pontoAnterior.momento;
+                      }
+                      
+                      const fator = (coord - pontoAnterior.coord) / (pontoProximo.coord - pontoAnterior.coord);
+                      return pontoAnterior.momento + fator * (pontoProximo.momento - pontoAnterior.momento);
                     };
                     
                     // Calcular pontos do gráfico
@@ -649,7 +701,12 @@ export default function KappaCalc() {
                             return Math.abs(coordM2d - coord) < 0.1;
                           });
                           if (segX && Number.isFinite(segX.M2d) && segX.M2d !== null) {
-                            M2dCoincidenteX = segX.M2d;
+                            // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                            const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                              return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                            };
+                            const maiorMomentoSegmento = getMaiorMomento(segX.Mtop, segX.Mbase);
+                            M2dCoincidenteX = Math.abs(segX.M2d) * Math.sign(maiorMomentoSegmento);
                           }
                         }
                         
@@ -659,7 +716,12 @@ export default function KappaCalc() {
                             return Math.abs(coordM2d - coord) < 0.1;
                           });
                           if (segY && Number.isFinite(segY.M2d) && segY.M2d !== null) {
-                            M2dCoincidenteY = segY.M2d;
+                            // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                            const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                              return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                            };
+                            const maiorMomentoSegmento = getMaiorMomento(segY.Mtop, segY.Mbase);
+                            M2dCoincidenteY = Math.abs(segY.M2d) * Math.sign(maiorMomentoSegmento);
                           }
                         }
                         
@@ -669,6 +731,14 @@ export default function KappaCalc() {
                         } else {
                           MsdX = travamentoX ? travamentoX.momentoInferior : (M2dCoincidenteX !== null ? M2dCoincidenteX : 0);
                           MsdY = travamentoY ? travamentoY.momentoInferior : (M2dCoincidenteY !== null ? M2dCoincidenteY : 0);
+                        }
+
+                        // Se não há travamento em alguma direção e também não há M2d coincidente, interpolar
+                        if (!travamentoX && M2dCoincidenteX === null && solve.segmentos_x) {
+                          MsdX = interpolarMomento(coord, solve.segmentos_x, 'x');
+                        }
+                        if (!travamentoY && M2dCoincidenteY === null && solve.segmentos_y) {
+                          MsdY = interpolarMomento(coord, solve.segmentos_y, 'y');
                         }
                       } else if (ponto.tipo === 'm2d') {
                         let isM2dX = false;
@@ -680,7 +750,12 @@ export default function KappaCalc() {
                             return Math.abs(coordM2d - coord) < 0.1;
                           });
                           if (segX && Number.isFinite(segX.M2d) && segX.M2d !== null) {
-                            MsdX = segX.M2d;
+                            // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                            const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                              return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                            };
+                            const maiorMomentoSegmento = getMaiorMomento(segX.Mtop, segX.Mbase);
+                            MsdX = Math.abs(segX.M2d) * Math.sign(maiorMomentoSegmento);
                             isM2dX = true;
                           }
                         }
@@ -691,27 +766,32 @@ export default function KappaCalc() {
                             return Math.abs(coordM2d - coord) < 0.1;
                           });
                           if (segY && Number.isFinite(segY.M2d) && segY.M2d !== null) {
-                            MsdY = segY.M2d;
+                            // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                            const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                              return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                            };
+                            const maiorMomentoSegmento = getMaiorMomento(segY.Mtop, segY.Mbase);
+                            MsdY = Math.abs(segY.M2d) * Math.sign(maiorMomentoSegmento);
                             isM2dY = true;
                           }
                         }
                         
                         if (isM2dX && !isM2dY && solve.segmentos_y) {
-                          MsdY = interpolarMomento(coord, solve.segmentos_y);
+                          MsdY = interpolarMomento(coord, solve.segmentos_y, 'y');
                         }
                         if (isM2dY && !isM2dX && solve.segmentos_x) {
-                          MsdX = interpolarMomento(coord, solve.segmentos_x);
+                          MsdX = interpolarMomento(coord, solve.segmentos_x, 'x');
                         }
                         
                         if (!isM2dX && !isM2dY) {
-                          if (solve.segmentos_x) MsdX = interpolarMomento(coord, solve.segmentos_x);
-                          if (solve.segmentos_y) MsdY = interpolarMomento(coord, solve.segmentos_y);
+                          if (solve.segmentos_x) MsdX = interpolarMomento(coord, solve.segmentos_x, 'x');
+                          if (solve.segmentos_y) MsdY = interpolarMomento(coord, solve.segmentos_y, 'y');
                         }
                       }
                       
                       return {
-                        x: MsdX,
-                        y: MsdY,
+                        x: MsdY,  // Msd,y vai para eixo horizontal (flexão em X)
+                        y: MsdX,  // Msd,x vai para eixo vertical (flexão em Y)
                         label: ponto.label,
                         tipo: ponto.tipo,
                         coord: coord  // Adicionar coordenada (altura)
@@ -784,11 +864,11 @@ export default function KappaCalc() {
                         
                         {/* Labels dos eixos */}
                         <text x={width / 2} y={height - 10} textAnchor="middle" fill={THEME.pageText} fontSize={14} fontWeight="600">
-                          Msd,x (kN·m)
+                          Msd,y (kN·m)
                         </text>
                         <text x={15} y={height / 2} textAnchor="middle" fill={THEME.pageText} fontSize={14} fontWeight="600"
                               transform={`rotate(-90, 15, ${height / 2})`}>
-                          Msd,y (kN·m)
+                          Msd,x (kN·m)
                         </text>
                         
                         {/* Escalas X */}
@@ -842,7 +922,7 @@ export default function KappaCalc() {
                               style={{ cursor: 'pointer' }}
                             />
                             <title>
-                              {`Altura: ${ponto.coord.toFixed(1)} cm\nMsd,x: ${ponto.x.toFixed(2)} kN·m\nMsd,y: ${ponto.y.toFixed(2)} kN·m`}
+                              {`Altura: ${ponto.coord.toFixed(1)} cm\nMsd,y: ${ponto.x.toFixed(2)} kN·m\nMsd,x: ${ponto.y.toFixed(2)} kN·m`}
                             </title>
                           </g>
                         ))}
@@ -863,31 +943,78 @@ export default function KappaCalc() {
                   </div>
               
               {(() => {
-                // Função para interpolar momentos considerando M2d
-                const interpolarMomento = (coord: number, segmentos: any[]) => {
-                  // Encontrar segmento que contém a coordenada
+                // Função para interpolar momentos considerando M2d e travamentos
+                const interpolarMomento = (coord: number, segmentos: any[], direcao: 'x' | 'y') => {
                   const segmento = segmentos.find(seg => coord >= seg.inicio && coord <= seg.fim);
                   if (!segmento) return 0;
                   
+                  // Coletar todos os pontos relevantes no segmento (ordenados por coordenada)
+                  const pontosSegmento = [];
+                  
+                  // Adicionar extremidades do segmento
+                  pontosSegmento.push({ coord: segmento.inicio, momento: segmento.Mbase });
+                  pontosSegmento.push({ coord: segmento.fim, momento: segmento.Mtop });
+                  
+                  // Adicionar M2d se existir - usando a mesma lógica de ajuste de sinal dos diagramas
                   const coordM2d = segmento.inicio + (segmento.fim - segmento.inicio) / 2;
                   const M2d = Number.isFinite(segmento.M2d) && segmento.M2d !== null ? segmento.M2d : null;
-                  
-                  // Se não há M2d válido, usar interpolação linear simples
-                  if (M2d === null) {
-                    const fator = (coord - segmento.inicio) / (segmento.fim - segmento.inicio);
-                    return segmento.Mbase + fator * (segmento.Mtop - segmento.Mbase);
+                  if (M2d !== null) {
+                    // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                    const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                      return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                    };
+                    const maiorMomentoSegmento = getMaiorMomento(segmento.Mtop, segmento.Mbase);
+                    const m2dAjustado = Math.abs(M2d) * Math.sign(maiorMomentoSegmento);
+                    pontosSegmento.push({ coord: coordM2d, momento: m2dAjustado });
                   }
                   
-                  // Interpolação considerando M2d no meio do segmento
-                  if (coord <= coordM2d) {
-                    // Entre base e M2d
-                    const fator = (coord - segmento.inicio) / (coordM2d - segmento.inicio);
-                    return segmento.Mbase + fator * (M2d - segmento.Mbase);
-                  } else {
-                    // Entre M2d e topo
-                    const fator = (coord - coordM2d) / (segmento.fim - coordM2d);
-                    return M2d + fator * (segmento.Mtop - M2d);
+                  // Adicionar travamentos dentro do segmento
+                  const travamentosSegmento = inputs.travamentos.filter(t => 
+                    t.direcao === direcao && 
+                    t.coordenada > segmento.inicio && 
+                    t.coordenada < segmento.fim
+                  );
+                  
+                  travamentosSegmento.forEach(trav => {
+                    // Determinar qual momento do travamento usar baseado na posição relativa ao M2d
+                    let momentoTrav;
+                    if (M2d !== null) {
+                      // Se há M2d, usar momento superior se estiver abaixo do M2d, inferior se estiver acima
+                      if (trav.coordenada <= coordM2d) {
+                        momentoTrav = trav.momentoSuperior;
+                      } else {
+                        momentoTrav = trav.momentoInferior;
+                      }
+                    } else {
+                      // Se não há M2d, interpolar entre os momentos do travamento baseado na posição no segmento
+                      const fatorSegmento = (trav.coordenada - segmento.inicio) / (segmento.fim - segmento.inicio);
+                      momentoTrav = trav.momentoInferior + fatorSegmento * (trav.momentoSuperior - trav.momentoInferior);
+                    }
+                    pontosSegmento.push({ coord: trav.coordenada, momento: momentoTrav });
+                  });
+                  
+                  // Ordenar pontos por coordenada
+                  pontosSegmento.sort((a, b) => a.coord - b.coord);
+                  
+                  // Encontrar os dois pontos adjacentes para interpolação
+                  let pontoAnterior = pontosSegmento[0];
+                  let pontoProximo = pontosSegmento[pontosSegmento.length - 1];
+                  
+                  for (let i = 0; i < pontosSegmento.length - 1; i++) {
+                    if (coord >= pontosSegmento[i].coord && coord <= pontosSegmento[i + 1].coord) {
+                      pontoAnterior = pontosSegmento[i];
+                      pontoProximo = pontosSegmento[i + 1];
+                      break;
+                    }
                   }
+                  
+                  // Interpolação linear entre os dois pontos
+                  if (pontoAnterior.coord === pontoProximo.coord) {
+                    return pontoAnterior.momento;
+                  }
+                  
+                  const fator = (coord - pontoAnterior.coord) / (pontoProximo.coord - pontoAnterior.coord);
+                  return pontoAnterior.momento + fator * (pontoProximo.momento - pontoAnterior.momento);
                 };
 
                 // Coletar pontos críticos
@@ -953,7 +1080,12 @@ export default function KappaCalc() {
                         return Math.abs(coordM2d - coord) < 0.1; // tolerância
                       });
                       if (segX && Number.isFinite(segX.M2d) && segX.M2d !== null) {
-                        M2dCoincidenteX = segX.M2d;
+                        // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                        const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                          return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                        };
+                        const maiorMomentoSegmento = getMaiorMomento(segX.Mtop, segX.Mbase);
+                        M2dCoincidenteX = Math.abs(segX.M2d) * Math.sign(maiorMomentoSegmento);
                       }
                     }
                     
@@ -963,7 +1095,12 @@ export default function KappaCalc() {
                         return Math.abs(coordM2d - coord) < 0.1; // tolerância
                       });
                       if (segY && Number.isFinite(segY.M2d) && segY.M2d !== null) {
-                        M2dCoincidenteY = segY.M2d;
+                        // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                        const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                          return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                        };
+                        const maiorMomentoSegmento = getMaiorMomento(segY.Mtop, segY.Mbase);
+                        M2dCoincidenteY = Math.abs(segY.M2d) * Math.sign(maiorMomentoSegmento);
                       }
                     }
                     
@@ -976,6 +1113,14 @@ export default function KappaCalc() {
                       MsdX = travamentoX ? travamentoX.momentoInferior : (M2dCoincidenteX !== null ? M2dCoincidenteX : 0);
                       MsdY = travamentoY ? travamentoY.momentoInferior : (M2dCoincidenteY !== null ? M2dCoincidenteY : 0);
                     }
+
+                    // Se não há travamento em alguma direção e também não há M2d coincidente, interpolar
+                    if (!travamentoX && M2dCoincidenteX === null && solve.segmentos_x) {
+                      MsdX = interpolarMomento(coord, solve.segmentos_x, 'x');
+                    }
+                    if (!travamentoY && M2dCoincidenteY === null && solve.segmentos_y) {
+                      MsdY = interpolarMomento(coord, solve.segmentos_y, 'y');
+                    }
                   } else if (ponto.tipo === 'm2d') {
                     // Verificar se é ponto M2d de algum segmento
                     let isM2dX = false;
@@ -987,7 +1132,12 @@ export default function KappaCalc() {
                         return Math.abs(coordM2d - coord) < 0.1; // tolerância
                       });
                       if (segX && Number.isFinite(segX.M2d) && segX.M2d !== null) {
-                        MsdX = segX.M2d;
+                        // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                        const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                          return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                        };
+                        const maiorMomentoSegmento = getMaiorMomento(segX.Mtop, segX.Mbase);
+                        MsdX = Math.abs(segX.M2d) * Math.sign(maiorMomentoSegmento);
                         isM2dX = true;
                       }
                     }
@@ -998,23 +1148,28 @@ export default function KappaCalc() {
                         return Math.abs(coordM2d - coord) < 0.1; // tolerância
                       });
                       if (segY && Number.isFinite(segY.M2d) && segY.M2d !== null) {
-                        MsdY = segY.M2d;
+                        // Aplicar a mesma lógica de ajuste de sinal usada nos diagramas
+                        const getMaiorMomento = (momentoTop: number, momentoBottom: number) => {
+                          return Math.abs(momentoTop) >= Math.abs(momentoBottom) ? momentoTop : momentoBottom;
+                        };
+                        const maiorMomentoSegmento = getMaiorMomento(segY.Mtop, segY.Mbase);
+                        MsdY = Math.abs(segY.M2d) * Math.sign(maiorMomentoSegmento);
                         isM2dY = true;
                       }
                     }
                     
                     // Interpolar o momento na direção que não é M2d
                     if (isM2dX && !isM2dY && solve.segmentos_y) {
-                      MsdY = interpolarMomento(coord, solve.segmentos_y);
+                      MsdY = interpolarMomento(coord, solve.segmentos_y, 'y');
                     }
                     if (isM2dY && !isM2dX && solve.segmentos_x) {
-                      MsdX = interpolarMomento(coord, solve.segmentos_x);
+                      MsdX = interpolarMomento(coord, solve.segmentos_x, 'x');
                     }
                     
                     // Se nenhum é M2d, interpolar ambos
                     if (!isM2dX && !isM2dY) {
-                      if (solve.segmentos_x) MsdX = interpolarMomento(coord, solve.segmentos_x);
-                      if (solve.segmentos_y) MsdY = interpolarMomento(coord, solve.segmentos_y);
+                      if (solve.segmentos_x) MsdX = interpolarMomento(coord, solve.segmentos_x, 'x');
+                      if (solve.segmentos_y) MsdY = interpolarMomento(coord, solve.segmentos_y, 'y');
                     }
                   }
                   
