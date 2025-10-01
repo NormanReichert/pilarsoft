@@ -243,21 +243,20 @@ function TravamentosManager({
         <div style={{
           fontSize: 12,
           color: THEME.subtle,
-          fontStyle: 'italic'
+          fontStyle: 'italic',
+          marginBottom: 16
         }}>
           Use os botões acima para adicionar travamentos nas direções X ou Y
         </div>
       )}
 
-      {/* Visualização dos segmentos */}
-      {travamentos.length > 0 && (
-        <SegmentosPilarVisualizacao
-          alturaPilar={alturaTotal}
-          travamentos={travamentos}
-          a={a}
-          b={b}
-        />
-      )}
+      {/* Visualização dos segmentos - sempre exibida */}
+      <SegmentosPilarVisualizacao
+        alturaPilar={alturaTotal}
+        travamentos={travamentos}
+        a={a}
+        b={b}
+      />
     </div>
   );
 }

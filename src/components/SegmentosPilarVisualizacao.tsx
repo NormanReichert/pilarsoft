@@ -58,17 +58,20 @@ function SegmentosPilarVisualizacao({
         {segmentosX.map((segmento, index) => {
           const lambda = calcularLambdaSegmento(segmento.comprimento, 'x');
           const isLambdaExcessivo = lambda > 90;
+          const maiorDimensao = Math.max(a, b);
+          const comprimentoMinimo = 3 * maiorDimensao;
+          const isComprimentoInsuficiente = segmento.comprimento < comprimentoMinimo;
           
           return (
             <div key={`x-${index}`} style={{
               padding: '6px 8px',
               marginBottom: 2,
-              background: isLambdaExcessivo ? '#7f1d1d' : '#1e293b',
+              background: (isLambdaExcessivo || isComprimentoInsuficiente) ? '#7f1d1d' : '#1e293b',
               borderRadius: 4,
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              border: isLambdaExcessivo ? '1px solid #dc2626' : 'none'
+              border: (isLambdaExcessivo || isComprimentoInsuficiente) ? '1px solid #dc2626' : 'none'
             }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span>
@@ -92,10 +95,21 @@ function SegmentosPilarVisualizacao({
                       alignItems: 'center',
                       gap: 2
                     }}>
-                      ⚠️ MÉTODO NÃO APLICÁVEL
+                      ⚠️ MÉTODO NÃO APLICÁVEL (λ{'>'} 90)
                     </span>
                   )}
                 </div>
+                {isComprimentoInsuficiente && (
+                  <div style={{
+                    fontSize: 9,
+                    color: '#fca5a5',
+                    fontWeight: 600,
+                    lineHeight: 1.2,
+                    marginTop: 2
+                  }}>
+                    ⚠️ O COMPRIMENTO LONGITUDINAL DEVE SUPERAR PELO MENOS TRÊS VEZES A MAIOR DIMENSÃO DA SEÇÃO TRANSVERSAL (ITEM 14.4.1, NBR 6118)
+                  </div>
+                )}
               </div>
               <span style={{
                 color: segmento.travamentosX ? '#2563eb' : THEME.subtle,
@@ -121,17 +135,20 @@ function SegmentosPilarVisualizacao({
         {segmentosY.map((segmento, index) => {
           const lambda = calcularLambdaSegmento(segmento.comprimento, 'y');
           const isLambdaExcessivo = lambda > 90;
+          const maiorDimensao = Math.max(a, b);
+          const comprimentoMinimo = 3 * maiorDimensao;
+          const isComprimentoInsuficiente = segmento.comprimento < comprimentoMinimo;
           
           return (
             <div key={`y-${index}`} style={{
               padding: '6px 8px',
               marginBottom: 2,
-              background: isLambdaExcessivo ? '#7f1d1d' : '#1e293b',
+              background: (isLambdaExcessivo || isComprimentoInsuficiente) ? '#7f1d1d' : '#1e293b',
               borderRadius: 4,
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              border: isLambdaExcessivo ? '1px solid #dc2626' : 'none'
+              border: (isLambdaExcessivo || isComprimentoInsuficiente) ? '1px solid #dc2626' : 'none'
             }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span>
@@ -155,10 +172,21 @@ function SegmentosPilarVisualizacao({
                       alignItems: 'center',
                       gap: 2
                     }}>
-                      ⚠️ MÉTODO NÃO APLICÁVEL
+                      ⚠️ MÉTODO NÃO APLICÁVEL (λ{'>'} 90)
                     </span>
                   )}
                 </div>
+                {isComprimentoInsuficiente && (
+                  <div style={{
+                    fontSize: 9,
+                    color: '#fca5a5',
+                    fontWeight: 600,
+                    lineHeight: 1.2,
+                    marginTop: 2
+                  }}>
+                    ⚠️ O COMPRIMENTO LONGITUDINAL DEVE SUPERAR PELO MENOS TRÊS VEZES A MAIOR DIMENSÃO DA SEÇÃO TRANSVERSAL (ITEM 14.4.1, NBR 6118)
+                  </div>
+                )}
               </div>
               <span style={{
                 color: segmento.travamentosY ? '#dc2626' : THEME.subtle,
