@@ -7,10 +7,14 @@ function TravamentosManager({
   travamentos,
   onTravamentosChange,
   alturaTotal,
+  a,
+  b,
 }: {
   travamentos: Travamento[];
   onTravamentosChange: (travamentos: Travamento[]) => void;
   alturaTotal: number;
+  a: number;
+  b: number;
 }) {
   const adicionarTravamento = (direcao: 'x' | 'y') => {
     const novoTravamento: Travamento = {
@@ -250,6 +254,8 @@ function TravamentosManager({
         <SegmentosPilarVisualizacao
           alturaPilar={alturaTotal}
           travamentos={travamentos}
+          a={a}
+          b={b}
         />
       )}
     </div>
