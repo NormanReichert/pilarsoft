@@ -36,6 +36,15 @@ export type Inputs = {
   Msk_by: number; // kN·m
   // Travamentos
   travamentos: Travamento[];
+  // Armaduras
+  armaduras?: Array<{
+    cgX: string;
+    cgY: string;
+    cgXCalc: number;
+    cgYCalc: number;
+    area: number;
+    diametro: number;
+  }>;
 };
 
 export type SegmentoResultado = {
@@ -294,16 +303,22 @@ export function compute(inp: Inputs): Outputs {
 
 // Valores padrão
 export const defaultInputs: Inputs = {
-  a: 25, b: 35, h: 640,
+  a: 20, b: 40, h: 340,
   gama_c: 1.4, gama_s: 1.15, gama_f: 1,
   fck: 30, fyk: 500,
-  Nsk: 1640,
+  Nsk: 540,
   Msk_tx: -30, Msk_bx: 50,
   Msk_ty: -10, Msk_by: 48,
   travamentos: [],
+  armaduras: [
+    { cgX: '5', cgY: '5', cgXCalc: 5, cgYCalc: 5, area: 2, diametro: 1.6 },
+    { cgX: '15', cgY: '5', cgXCalc: 15, cgYCalc: 5, area: 2, diametro: 1.6 },
+    { cgX: '5', cgY: '35', cgXCalc: 5, cgYCalc: 35, area: 2, diametro: 1.6 },
+    { cgX: '15', cgY: '35', cgXCalc: 15, cgYCalc: 35, area: 2, diametro: 1.6 }
+  ],
 };
 
-// Função unificada para cálculo de M2d
+// Função para cálculo de M2d
 export function calcularM2d(params: {
   lambda: number;
   fa: number;

@@ -17,6 +17,7 @@ import Row from "../components/Row";
 import TravamentosManager from "../components/TravamentoManager";
 import DiagramNsd, { GRAPH_CONFIG } from "../components/DiagramNsd";
 import DiagramMomento from "../components/DiagramMomento";
+import CalcSecao from "../components/CalcSecao";
 
 
 const num = (v: any) => {
@@ -255,6 +256,14 @@ export default function KappaCalc() {
               })()}
             </div>
           )}
+
+          {tab === "discretizacao" && 
+          <CalcSecao 
+          solve={solve}
+          inputs={inputs}
+          onInputsChange={setInputs}/>
+          
+          }
 
           {tab === "memoria" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 40, marginTop: -260 }}>
