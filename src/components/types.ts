@@ -41,25 +41,3 @@ export type Tensoes = {
     Epsilon: number, Tensao: number, Area: number, dy: number, dx: number, dyCalc: number, dxCalc: number
 }[]
 export type Logs = { tipo: string, mensagem: string }[];
-// export type Secao_inputType = {
-//     //nome: string,
-//     //divX: number,
-//     //divY: number,
-//     //fixMalha: boolean,
-//     secaoTransversal: SecaoTransversal
-//     armaduras: Armaduras,
-//     //subdivisaoMalha: number,
-//     //anguloDecalculo: number,
-//     epsilonCu: number,
-//     epsilonC2: number,
-//     epsilonAs: number,
-//     //epsilonAsFy: number,
-//     GamaC: number,
-//     GamaS: number,
-//     //gamaF3: number,
-//     //toleranciaLN: number,
-//     //beta: number,
-//     nSd: number,
-//     //angSelect: number,
-//     //parteSecaoSelect: number,
-// }
