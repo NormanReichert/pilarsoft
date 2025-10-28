@@ -6,7 +6,8 @@ import type { Discretizacao, SecaoTransversal, RetanguloCompleto, Armaduras, Dis
 type Props = {
     solve: Outputs,
     inputs: Inputs,
-    onInputsChange: (inputs: Inputs) => void
+    onInputsChange: (inputs: Inputs) => void,
+    onEnvoltoriaChange?: (envoltoria: Array<{MRdX: number, MRdY: number}>) => void
 }
 
 const Secao = (props: Props) => {
@@ -43,11 +44,6 @@ const Secao = (props: Props) => {
 
     // Usar armaduras dos inputs ao invés de estado local
     const armaduras = props.inputs.armaduras || [];
-
-    // Estados para o formulário de adição de armaduras
-    const [coordX, setCoordX] = useState<number>(3);
-    const [coordY, setCoordY] = useState<number>(3);
-    const [diametro, setDiametro] = useState<number>(12.5);
 
     //recalcula a discretização toda a vez que a seção ou armaduras mudam
     useEffect(() => {
@@ -103,49 +99,6 @@ const Secao = (props: Props) => {
 
     }, [props.inputs.a, props.inputs.b]);
 
-    // Função para adicionar uma nova armadura
-    const adicionarArmadura = () => {
-        // Validar se as coordenadas estão dentro da seção
-        if (coordX < 0 || coordX > props.inputs.a || coordY < 0 || coordY > props.inputs.b) {
-            alert(`Coordenadas devem estar entre (0,0) e (${props.inputs.a},${props.inputs.b})`);
-            return;
-        }
-
-        const novaArmadura = {
-            cgX: coordX.toString(),
-            cgY: coordY.toString(),
-            cgXCalc: coordX,
-            cgYCalc: coordY,
-            area: Math.PI * Math.pow(diametro / 20, 2), // área em cm²
-            diametro: diametro
-        };
-
-        // Atualizar inputs com a nova armadura
-        props.onInputsChange({
-            ...props.inputs,
-            armaduras: [...armaduras, novaArmadura]
-        });
-    };
-
-    // Função para remover uma armadura
-    const removerArmadura = (iNSdex: number) => {
-        props.onInputsChange({
-            ...props.inputs,
-            armaduras: armaduras.filter((_, i) => i !== iNSdex)
-        });
-    };
-
-    // Função para limpar todas as armaduras
-    const limparArmaduras = () => {
-        props.onInputsChange({
-            ...props.inputs,
-            armaduras: []
-        });
-    };
-    ;
-
-
-
     //====================== Cálculos principais====================
     let angulo = 10;
     let quantidadeDeCalculos = (angulo > 0) ? Math.floor(360 / angulo) : 1;
@@ -193,12 +146,17 @@ const Secao = (props: Props) => {
             //logs Forças AC
             logs.push(...ForcasAC.logs);
             //cálculo dos momentos resistentes
-            let MRdX = momentoResistenteX(ForcasAC.TensoesAco, ForcasAC.TensoesConcreto, ForcasAC.TensoesPosBarras, GamaF3);
-            let MRdY = momentoResistenteY(ForcasAC.TensoesAco, ForcasAC.TensoesConcreto, ForcasAC.TensoesPosBarras, GamaF3);
+            let MRdX = momentoResistenteX(ForcasAC.TensoesAco, ForcasAC.TensoesConcreto, ForcasAC.TensoesPosBarras, GamaF3, props.inputs.a, props.inputs.b);
+            let MRdY = momentoResistenteY(ForcasAC.TensoesAco, ForcasAC.TensoesConcreto, ForcasAC.TensoesPosBarras, GamaF3, props.inputs.a, props.inputs.b);
             graficoNMxMy.push({ MRdX: MRdX, MRdY: MRdY });
             
         }
         console.log("🚀 ~ Secao ~ graficoNMxMy:", graficoNMxMy)
+        
+        // Enviar envoltória para o componente pai
+        if (props.onEnvoltoriaChange && graficoNMxMy.length > 0) {
+            props.onEnvoltoriaChange(graficoNMxMy);
+        }
     }
 
 
@@ -210,149 +168,25 @@ const Secao = (props: Props) => {
 
     // INFORMAÇÕES RENSdERIZADAS
     return (
-        <div>
-
-            {/* Formulário de Adição de Armaduras */}
-            <div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '40px', marginBottom: '15px' }}>
-                    <div>
-                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                            Coordenada X (cm):
-                        </label>
-                        <input
-                            type="number"
-                            value={coordX}
-                            onChange={(e) => setCoordX(Number(e.target.value))}
-                            min={0}
-                            max={props.inputs.a}
-                            step={0.1}
-                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                        />
-                    </div>
-
-                    <div>
-                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                            Coordenada Y (cm):
-                        </label>
-                        <input
-                            type="number"
-                            value={coordY}
-                            onChange={(e) => setCoordY(Number(e.target.value))}
-                            min={0}
-                            max={props.inputs.b}
-                            step={0.1}
-                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                        />
-                    </div>
-
-                    <div>
-                        <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
-                            Diâmetro (mm):
-                        </label>
-                        <input
-                            type="number"
-                            value={diametro}
-                            onChange={(e) => setDiametro(Number(e.target.value))}
-                            min={6}
-                            max={40}
-                            step={0.1}
-                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-                        />
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                        onClick={adicionarArmadura}
-                        style={{
-                            padding: '10px 20px',
-                            backgroundColor: '#1976d2',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold'
-                        }}
-                    >
-                        +
-                    </button>
-
-                    {armaduras.length > 0 && (
-                        <button
-                            onClick={limparArmaduras}
-                            style={{
-                                padding: '10px 20px',
-                                backgroundColor: '#d32f2f',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold'
-                            }}
-                        >
-                            Limpar
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* Lista de Armaduras */}
-            <div>
-                {armaduras.length === 0 ? (
-                    <p style={{ color: '#666', fontStyle: 'italic' }}>
+        <div style={{ padding: '20px' }}>
+            <h3 style={{ marginBottom: '20px' }}>Discretização da Seção Transversal</h3>
+            
+            {armaduras.length === 0 ? (
+                <p style={{ color: '#666', fontStyle: 'italic' }}>
+                    Nenhuma armadura cadastrada. Adicione armaduras na aba "Dados de entrada".
+                </p>
+            ) : (
+                <div>
+                    <p style={{ marginBottom: '10px' }}>
+                        <strong>Armaduras cadastradas:</strong> {armaduras.length}
                     </p>
-                ) : (
-                    <>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '15px' }}>
-                            <thead>
-                                <tr>
-                                    <th style={{ padding: '10px', textAlign: 'left' }}>#</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>Coord. X (cm)</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>Coord. Y (cm)</th>
-                                    <th style={{ padding: '10px', textAlign: 'center' }}>Diâmetro (mm)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {armaduras.map((barra, iNSdex) => (
-                                    <tr
-                                        key={iNSdex}
-                                        style={{
-                                            borderBottom: '1px solid #ddd'
-                                        }}
-                                    >
-                                        <td style={{ padding: '10px' }}>{iNSdex + 1}</td>
-                                        <td style={{ padding: '10px', textAlign: 'center' }}>
-                                            {barra.cgXCalc.toFixed(2)}
-                                        </td>
-                                        <td style={{ padding: '10px', textAlign: 'center' }}>
-                                            {barra.cgYCalc.toFixed(2)}
-                                        </td>
-                                        <td style={{ padding: '10px', textAlign: 'center' }}>
-                                            {barra.diametro}
-                                        </td>
-                                        <td style={{ padding: '10px', textAlign: 'center' }}>
-                                            <button
-                                                onClick={() => removerArmadura(iNSdex)}
-                                                style={{
-                                                    padding: '5px 10px',
-                                                    backgroundColor: '#f44336',
-                                                    color: 'white',
-                                                    border: 'none',
-                                                    borderRadius: '4px',
-                                                    cursor: 'pointer',
-                                                    fontSize: '12px'
-                                                }}
-                                            >
-                                                ✕
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </>
-                )}
-            </div>
+                    <p style={{ color: '#666', fontSize: '14px' }}>
+                        Os cálculos estão sendo realizados com base nas armaduras informadas na aba "Dados de entrada".
+                    </p>
+                </div>
+            )}
+            
+            {/* Aqui pode adicionar futuramente a visualização SVG da seção */}
         </div>
     );
 }
@@ -771,18 +605,27 @@ export function CalculaFxLN(fck: number, fyk: number, xLN: number, d: number, Nd
  * @returns {number} - O momento resistente em torno do eixo X (Mx).
  */
 
-export function momentoResistenteX(TensoesAco: Tensoes, TensoesConcreto: Tensoes, TensosBarrasConcreto: Tensoes, GamaF3: number): number {
+export function momentoResistenteX(TensoesAco: Tensoes, TensoesConcreto: Tensoes, TensosBarrasConcreto: Tensoes, GamaF3: number, larguraSecao: number, alturaSecao: number): number {
+
+    // Centro geométrico da seção
+    const centroY = alturaSecao / 2;
 
     let ForcaConcreto = 0;
     let ForcaAco = 0;
     TensoesConcreto.forEach(item => {
-        ForcaConcreto += item.Area * item.Tensao * item.dy;
+        // Ajustar dy para ser relativo ao centro geométrico
+        const dyRelativo = item.dy - centroY;
+        ForcaConcreto += item.Area * item.Tensao * dyRelativo;
     });
     TensosBarrasConcreto.forEach(item => {
-        ForcaConcreto -= item.Area * item.Tensao * item.dy;
+        // Ajustar dy para ser relativo ao centro geométrico
+        const dyRelativo = item.dy - centroY;
+        ForcaConcreto -= item.Area * item.Tensao * dyRelativo;
     });
     TensoesAco.forEach(item => {
-        ForcaAco += item.Area * item.Tensao * item.dy;
+        // Ajustar dy para ser relativo ao centro geométrico
+        const dyRelativo = item.dy - centroY;
+        ForcaAco += item.Area * item.Tensao * dyRelativo;
     });
     const Mx = ((ForcaConcreto + ForcaAco) / (GamaF3)) / 100;
     return Mx
@@ -803,18 +646,27 @@ export function momentoResistenteX(TensoesAco: Tensoes, TensoesConcreto: Tensoes
  * @param {number} GamaF3 - Fator de segurança.
  * @returns {number} - O momento resistente em torno do eixo Y (My).
  */
-export function momentoResistenteY(TensoesAco: Tensoes, TensoesConcreto: Tensoes, TensosBarrasConcreto: Tensoes, GamaF3: number): number {
+export function momentoResistenteY(TensoesAco: Tensoes, TensoesConcreto: Tensoes, TensosBarrasConcreto: Tensoes, GamaF3: number, larguraSecao: number, alturaSecao: number): number {
+
+    // Centro geométrico da seção
+    const centroX = larguraSecao / 2;
 
     let ForcaConcreto = 0;
     let ForcaAco = 0;
     TensoesConcreto.forEach(item => {
-        ForcaConcreto += item.Area * item.Tensao * item.dx;
+        // Ajustar dx para ser relativo ao centro geométrico
+        const dxRelativo = item.dx - centroX;
+        ForcaConcreto += item.Area * item.Tensao * dxRelativo;
     });
     TensosBarrasConcreto.forEach(item => {
-        ForcaConcreto -= item.Area * item.Tensao * item.dx;
+        // Ajustar dx para ser relativo ao centro geométrico
+        const dxRelativo = item.dx - centroX;
+        ForcaConcreto -= item.Area * item.Tensao * dxRelativo;
     });
     TensoesAco.forEach(item => {
-        ForcaAco += item.Area * item.Tensao * item.dx;
+        // Ajustar dx para ser relativo ao centro geométrico
+        const dxRelativo = item.dx - centroX;
+        ForcaAco += item.Area * item.Tensao * dxRelativo;
     });
 
     const My = -((ForcaConcreto + ForcaAco) / (GamaF3)) / 100;

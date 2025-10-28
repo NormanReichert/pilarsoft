@@ -15,6 +15,7 @@ import SectionTitle from "../components/SectionTitle";
 import LabeledNumber from "../components/LabeledNumber";
 import Row from "../components/Row";
 import TravamentosManager from "../components/TravamentoManager";
+import ArmadurasManager from "../components/ArmadurasManager";
 import DiagramNsd, { GRAPH_CONFIG } from "../components/DiagramNsd";
 import DiagramMomento from "../components/DiagramMomento";
 import CalcSecao from "../components/CalcSecao";
@@ -54,6 +55,7 @@ export default function KappaCalc() {
   const [tab, setTab] = useState<TabKey>("resultados");
   const [inputs, setInputs] = useState<Inputs>(defaultInputs);
   const [solve, setSolve] = useState<Outputs>();
+  const [envoltoriaResistente, setEnvoltoriaResistente] = useState<Array<{MRdX: number, MRdY: number}>>([]);
 
   useEffect(() => {
 
@@ -186,6 +188,16 @@ export default function KappaCalc() {
                   b={inputs.b}
                 />
               </div>
+
+              {/* Seção de Armaduras */}
+              <div style={{ marginTop: 24 }}>
+                <ArmadurasManager
+                  armaduras={inputs.armaduras || []}
+                  onArmadurasChange={(armaduras) => setInputs(s => ({ ...s, armaduras }))}
+                  larguraSecao={inputs.a}
+                  alturaSecao={inputs.b}
+                />
+              </div>
             </div>
           )}
 
@@ -261,7 +273,8 @@ export default function KappaCalc() {
           <CalcSecao 
           solve={solve}
           inputs={inputs}
-          onInputsChange={setInputs}/>
+          onInputsChange={setInputs}
+          onEnvoltoriaChange={setEnvoltoriaResistente}/>
           
           }
 
@@ -549,12 +562,43 @@ export default function KappaCalc() {
                 <div style={{ flex: '0 0 auto' }}>
                   <div style={{
                     fontWeight: 700,
-                    marginBottom: 20,
+                    marginBottom: 12,
                     fontSize: 16,
                     color: THEME.pageText,
                     textAlign: 'center'
                   }}>
                     DIAGRAMA DE INTERAÇÃO Msd,x × Msd,y
+                  </div>
+                  
+                  {/* Legenda */}
+                  <div style={{
+                    display: 'flex',
+                    gap: '20px',
+                    justifyContent: 'center',
+                    marginBottom: 12,
+                    fontSize: 12
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        backgroundColor: '#3b82f6',
+                        border: '2px solid white'
+                      }} />
+                      <span style={{ color: THEME.pageText }}>Pontos Solicitantes (Msd)</span>
+                    </div>
+                    {envoltoriaResistente.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{
+                          width: 20,
+                          height: 2,
+                          backgroundColor: '#22c55e',
+                          border: '1px dashed #22c55e'
+                        }} />
+                        <span style={{ color: THEME.pageText }}>Envoltória Resistente (MRd)</span>
+                      </div>
+                    )}
                   </div>
                   
                   {(() => {
@@ -795,6 +839,15 @@ export default function KappaCalc() {
                     // Calcular escalas
                     const allX = pontosGrafico.map(p => p.x);
                     const allY = pontosGrafico.map(p => p.y);
+                    
+                    // Incluir pontos da envoltória resistente na escala
+                    if (envoltoriaResistente.length > 0) {
+                      envoltoriaResistente.forEach(ponto => {
+                        allX.push(ponto.MRdY);
+                        allY.push(ponto.MRdX);
+                      });
+                    }
+                    
                     const minX = Math.min(...allX, 0);
                     const maxX = Math.max(...allX, 0);
                     const minY = Math.min(...allY, 0);
@@ -913,6 +966,45 @@ export default function KappaCalc() {
                             </title>
                           </g>
                         ))}
+                        
+                        {/* Envoltória Resistente */}
+                        {envoltoriaResistente.length > 0 && (() => {
+                          // Criar o caminho (path) da envoltória
+                          const pathData = envoltoriaResistente.map((ponto, index) => {
+                            const x = scaleX(ponto.MRdY);
+                            const y = scaleY(ponto.MRdX);
+                            return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+                          }).join(' ') + ' Z'; // Z para fechar o caminho
+                          
+                          return (
+                            <g>
+                              {/* Área preenchida da envoltória */}
+                              <path
+                                d={pathData}
+                                fill="#22c55e"
+                                fillOpacity={0.1}
+                                stroke="#22c55e"
+                                strokeWidth={2}
+                                strokeDasharray="5,5"
+                              />
+                              {/* Pontos da envoltória */}
+                              {envoltoriaResistente.map((ponto, index) => (
+                                <circle
+                                  key={`env-${index}`}
+                                  cx={scaleX(ponto.MRdY)}
+                                  cy={scaleY(ponto.MRdX)}
+                                  r={2}
+                                  fill="#22c55e"
+                                  opacity={0.6}
+                                >
+                                  <title>
+                                    {`MRd,y: ${ponto.MRdY.toFixed(2)} kN·m\nMRd,x: ${ponto.MRdX.toFixed(2)} kN·m`}
+                                  </title>
+                                </circle>
+                              ))}
+                            </g>
+                          );
+                        })()}
                       </svg>
                     );
                   })()}
