@@ -13,6 +13,7 @@ type DiagramMomentoProps = {
   alturaPilar?: number; // altura total do pilar em cm
   direcao?: 'x' | 'y'; // direção do diagrama para filtrar travamentos
   escalaGlobal?: number; // escala global para manter consistência entre diagramas X e Y
+  gama_f?: number; // coeficiente de majoração das ações
 };
 
 function DiagramMomento({
@@ -25,6 +26,7 @@ function DiagramMomento({
   alturaPilar,
   direcao,
   escalaGlobal,
+  gama_f = 1,
 }: DiagramMomentoProps) {
   const w = 420,
     h = GRAPH_CONFIG.height,
@@ -90,11 +92,11 @@ function DiagramMomento({
                 .filter(t => t.direcao === direcao)
                 .forEach(travamento => {
                   const yTrav = yBot - (yBot - yTop) * (travamento.coordenada / alturaPilar);
-                  // Momento superior
-                  const xMomentoSup = axisX + travamento.momentoSuperior * k;
+                  // Momento superior (majorado)
+                  const xMomentoSup = axisX + (travamento.momentoSuperior * gama_f) * k;
                   pontos.push({ y: yTrav, x: xMomentoSup, coordenada: travamento.coordenada });
-                  // Momento inferior
-                  const xMomentoInf = axisX + travamento.momentoInferior * k;
+                  // Momento inferior (majorado)
+                  const xMomentoInf = axisX + (travamento.momentoInferior * gama_f) * k;
                   pontos.push({ y: yTrav, x: xMomentoInf, coordenada: travamento.coordenada });
                 });
             }
@@ -225,9 +227,9 @@ function DiagramMomento({
               // Calcular a posição Y do travamento com base na coordenada (corrigido: 0 na base, alturaPilar no topo)
               const yTrav = yBot - (yBot - yTop) * (travamento.coordenada / alturaPilar);
               
-              // Calcular posições X dos momentos usando a mesma escala
-              const xMomentoSup = axisX + travamento.momentoSuperior * k;
-              const xMomentoInf = axisX + travamento.momentoInferior * k;
+              // Calcular posições X dos momentos usando a mesma escala (majorados)
+              const xMomentoSup = axisX + (travamento.momentoSuperior * gama_f) * k;
+              const xMomentoInf = axisX + (travamento.momentoInferior * gama_f) * k;
               
               return (
                 <g key={`trav-${i}`}>
@@ -253,7 +255,7 @@ function DiagramMomento({
                   <TextLabel
                     x={xMomentoSup + (xMomentoSup >= axisX ? 2 : -2)}
                     y={yTrav - 6}
-                    text={`${travamento.momentoSuperior.toFixed(1)}`}
+                    text={`${(travamento.momentoSuperior * gama_f).toFixed(1)}`}
                     anchor={xMomentoSup >= axisX ? "start" : "end"}
                   />
                   
@@ -269,7 +271,7 @@ function DiagramMomento({
                   <TextLabel
                     x={xMomentoInf + (xMomentoInf >= axisX ? 2 : -2)}
                     y={yTrav + 14}
-                    text={`${travamento.momentoInferior.toFixed(1)}`}
+                    text={`${(travamento.momentoInferior * gama_f).toFixed(1)}`}
                     anchor={xMomentoInf >= axisX ? "start" : "end"}
                   />
                 </g>

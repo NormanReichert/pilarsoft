@@ -12,11 +12,13 @@ export const GRAPH_CONFIG = {
 function DiagramNsd({ 
   nsd, 
   travamentos, 
-  alturaPilar 
+  alturaPilar,
+  gama_f = 1
 }: { 
   nsd: number;
   travamentos?: Travamento[];
   alturaPilar?: number;
+  gama_f?: number;
 }) {
   const w = 420,
     h = GRAPH_CONFIG.height,
@@ -106,7 +108,7 @@ function DiagramNsd({
                 travamentosPorCoordDir.set(coord, {});
               }
               const grupo = travamentosPorCoordDir.get(coord)!;
-              grupo[t.direcao] = t.compressao;
+              grupo[t.direcao] = t.compressao * gama_f; // Majorar a compressão
             });
             
             // Validar e determinar cargas finais por coordenada

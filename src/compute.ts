@@ -160,29 +160,29 @@ export function compute(inp: Inputs): Outputs {
     let Nk_superior = 0;
     const travamentoNoFim = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'x');
     if (travamentoNoFim) {
-      Nk_superior = travamentoNoFim.compressao;
+      Nk_superior = travamentoNoFim.compressao * gama_f; // majorar compressão do travamento
     } else if (segmento.fim === h) {
-      Nk_superior = Nsk; // no topo do pilar
+      Nk_superior = Nsd; // no topo do pilar (valor de cálculo majorado)
     }
 
     // Determinar momentos na base e topo do segmento
     let Mbase = 0, Mtop = 0;
     // Momento na base: se existe travamento logo abaixo, pega momentoSuperior dele
     if (segmento.inicio === 0) {
-      Mbase = Msk_bx; // base do pilar
+      Mbase = Msd_bx; // base do pilar (valor de cálculo majorado)
     } else {
       const travamentoAbaixo = travamentos.find(t => t.coordenada === segmento.inicio && t.direcao === 'x');
       if (travamentoAbaixo) {
-        Mbase = travamentoAbaixo.momentoSuperior;
+        Mbase = travamentoAbaixo.momentoSuperior * gama_f; // majorar momento do travamento
       }
     }
     // Momento no topo: se existe travamento logo acima, pega momentoInferior dele
     if (segmento.fim === h) {
-      Mtop = Msk_tx; // topo do pilar
+      Mtop = Msd_tx; // topo do pilar (valor de cálculo majorado)
     } else {
       const travamentoAcima = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'x');
       if (travamentoAcima) {
-        Mtop = travamentoAcima.momentoInferior;
+        Mtop = travamentoAcima.momentoInferior * gama_f; // majorar momento do travamento
       }
     }
     
@@ -220,29 +220,29 @@ export function compute(inp: Inputs): Outputs {
     let Nk_superior = 0;
     const travamentoNoFim = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'y');
     if (travamentoNoFim) {
-      Nk_superior = travamentoNoFim.compressao;
+      Nk_superior = travamentoNoFim.compressao * gama_f; // majorar compressão do travamento
     } else if (segmento.fim === h) {
-      Nk_superior = Nsk; // no topo do pilar
+      Nk_superior = Nsd; // no topo do pilar (valor de cálculo majorado)
     }
 
     // Determinar momentos na base e topo do segmento
     let Mbase = 0, Mtop = 0;
     // Momento na base: se existe travamento logo abaixo, pega momentoSuperior dele
     if (segmento.inicio === 0) {
-      Mbase = Msk_by; // base do pilar
+      Mbase = Msd_by; // base do pilar (valor de cálculo majorado)
     } else {
       const travamentoAbaixo = travamentos.find(t => t.coordenada === segmento.inicio && t.direcao === 'y');
       if (travamentoAbaixo) {
-        Mbase = travamentoAbaixo.momentoSuperior;
+        Mbase = travamentoAbaixo.momentoSuperior * gama_f; // majorar momento do travamento
       }
     }
     // Momento no topo: se existe travamento logo acima, pega momentoInferior dele
     if (segmento.fim === h) {
-      Mtop = Msk_ty; // topo do pilar
+      Mtop = Msd_ty; // topo do pilar (valor de cálculo majorado)
     } else {
       const travamentoAcima = travamentos.find(t => t.coordenada === segmento.fim && t.direcao === 'y');
       if (travamentoAcima) {
-        Mtop = travamentoAcima.momentoInferior;
+        Mtop = travamentoAcima.momentoInferior * gama_f; // majorar momento do travamento
       }
     }
     
@@ -311,10 +311,10 @@ export const defaultInputs: Inputs = {
   Msk_ty: -10, Msk_by: 48,
   travamentos: [],
   armaduras: [
-    { cgX: '5', cgY: '5', cgXCalc: 5, cgYCalc: 5, area: 2, diametro: 1.6 },
-    { cgX: '15', cgY: '5', cgXCalc: 15, cgYCalc: 5, area: 2, diametro: 1.6 },
-    { cgX: '5', cgY: '35', cgXCalc: 5, cgYCalc: 35, area: 2, diametro: 1.6 },
-    { cgX: '15', cgY: '35', cgXCalc: 15, cgYCalc: 35, area: 2, diametro: 1.6 }
+    { cgX: '5', cgY: '5', cgXCalc: 5, cgYCalc: 5, area: 2, diametro: 16 },
+    { cgX: '15', cgY: '5', cgXCalc: 15, cgYCalc: 5, area: 2, diametro: 16 },
+    { cgX: '5', cgY: '35', cgXCalc: 5, cgYCalc: 35, area: 2, diametro: 16 },
+    { cgX: '15', cgY: '35', cgXCalc: 15, cgYCalc: 35, area: 2, diametro: 16 }
   ],
 };
 

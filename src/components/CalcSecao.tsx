@@ -18,10 +18,10 @@ const Secao = (props: Props) => {
     const epsilonCu = -0.0035;
     const epsilonC2 = -0.002;
     const epsilonAs = 0.01;
-    const epsilonAsFy = 500 / 210000;
+    const epsilonAsFy = (props.inputs.fyk / props.inputs.gama_s) / 210000;
     const GamaC = props.inputs.gama_c;
     const GamaS = props.inputs.gama_s;
-    const GamaF3 = 1.1;
+    const GamaF3 = 1;
     const toleranciaLN = 0.0001;
     const beta = 0.85;
     const fck = props.inputs.fck / 10;
@@ -100,21 +100,27 @@ const Secao = (props: Props) => {
     }, [props.inputs.a, props.inputs.b]);
 
     //====================== Cálculos principais====================
-    let angulo = 10;
-    let quantidadeDeCalculos = (angulo > 0) ? Math.floor(360 / angulo) : 1;
-    let anguloPorCalculo = 360 / quantidadeDeCalculos;
-    let logs: Logs = [];
-    let graficoNMxMy = [];
+    useEffect(() => {
+        // Só calcular se houver armaduras
+        if (!armaduras || armaduras.length === 0) {
+            return;
+        }
+
+        let angulo = 10;
+        let quantidadeDeCalculos = (angulo > 0) ? Math.floor(360 / angulo) : 1;
+        let anguloPorCalculo = 360 / quantidadeDeCalculos;
+        let logs: Logs = [];
+        let graficoNMxMy = [];
 
 
-    if (armaduras) {        //Verifica se suporta o NSd
+        //Verifica se suporta o NSd
         if (NSd < 0) {
             let NRd = calculoDoNRdCompressao(secaoTransversal, discretizacao, fck, fyk, armaduras, epsilonC2, epsilonCu, epsilonAsFy, GamaC, GamaS, GamaF3, beta);
             if (NRd > NSd) {
                 //logs.push({ tipo: "erro", mensagem: dict.logs.NcSdFalha });
                 console.error("Não suporta compressão", NRd);
                 // alert(`Não suporta compressão`) //##Aqui
-                return [];
+                return;
             }
         }
         else {
@@ -123,7 +129,7 @@ const Secao = (props: Props) => {
                 //logs.push({ tipo: "erro", mensagem: dict.logs.NtSdFalha });
                 console.error("Não suporta tração", NRd);
                 // alert(`Não suporta tração`) //##Aqui
-                return [];
+                return;
             }
         }
         //começam os cálculos
@@ -157,7 +163,7 @@ const Secao = (props: Props) => {
         if (props.onEnvoltoriaChange && graficoNMxMy.length > 0) {
             props.onEnvoltoriaChange(graficoNMxMy);
         }
-    }
+    }, [discretizacao, armaduras, NSd, fck, fyk, epsilonC2, epsilonCu, epsilonAsFy, epsilonAs, GamaC, GamaS, GamaF3, beta, toleranciaLN, props.inputs.a, props.inputs.b]);
 
 
 

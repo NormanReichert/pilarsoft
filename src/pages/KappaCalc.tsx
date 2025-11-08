@@ -240,6 +240,7 @@ export default function KappaCalc() {
                       nsd={solve.Nsd} 
                       travamentos={inputs.travamentos}
                       alturaPilar={inputs.h}
+                      gama_f={inputs.gama_f}
                     />
                     <DiagramMomento
                       title="Msd, x (kN·m)"
@@ -251,6 +252,7 @@ export default function KappaCalc() {
                       alturaPilar={inputs.h}
                       direcao="x"
                       escalaGlobal={escalaGlobal}
+                      gama_f={inputs.gama_f}
                     />
                     <DiagramMomento
                       title="Msd, y (kN·m)"
@@ -262,6 +264,7 @@ export default function KappaCalc() {
                       alturaPilar={inputs.h}
                       direcao="y"
                       escalaGlobal={escalaGlobal}
+                      gama_f={inputs.gama_f}
                     />
                   </div>
                 );
