@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   compute,
   defaultInputs,
+  calcularCoeficienteSeguranca,
   type Inputs,
   type Travamento,
   type Outputs,
@@ -58,10 +59,24 @@ export default function KappaCalc() {
   const [envoltoriaResistente, setEnvoltoriaResistente] = useState<Array<{MRdX: number, MRdY: number}>>([]);
 
   useEffect(() => {
+    // Extrair valores máximos de MRdX e MRdY da envoltória
+    let MRdX = 0;
+    let MRdY = 0;
+    
+    if (envoltoriaResistente.length > 0) {
+      MRdX = Math.max(...envoltoriaResistente.map(p => Math.abs(p.MRdX)));
+      MRdY = Math.max(...envoltoriaResistente.map(p => Math.abs(p.MRdY)));
+      
+      console.log(`🎯 Usando MRd da envoltória: MRdX=${MRdX.toFixed(2)} kN·m, MRdY=${MRdY.toFixed(2)} kN·m`);
+    }
 
-    setSolve(compute(inputs));
+    setSolve(compute({
+      ...inputs,
+      MRdX,
+      MRdY
+    }));
 
-  }, [inputs]);
+  }, [inputs, envoltoriaResistente]);
 
   // const computedData = useMemo(() => {
   //   return compute(inputs);
@@ -589,19 +604,34 @@ export default function KappaCalc() {
                         backgroundColor: '#3b82f6',
                         border: '2px solid white'
                       }} />
-                      <span style={{ color: THEME.pageText }}>Pontos Solicitantes (Msd)</span>
+                      <span style={{ color: THEME.pageText }}>Pontos Solicitantes</span>
                     </div>
                     {envoltoriaResistente.length > 0 && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <div style={{
                           width: 20,
                           height: 2,
-                          backgroundColor: '#22c55e',
-                          border: '1px dashed #22c55e'
+                          backgroundColor: '#22c55e'
                         }} />
-                        <span style={{ color: THEME.pageText }}>Envoltória Resistente (MRd)</span>
+                        <span style={{ color: THEME.pageText }}>Envoltória Resistente</span>
                       </div>
                     )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{
+                        width: 20,
+                        height: 2,
+                        backgroundColor: '#f59e0b'
+                      }} />
+                      <span style={{ color: THEME.pageText }}>M1d,mín</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{
+                        width: 20,
+                        height: 2,
+                        backgroundColor: '#ff6b35'
+                      }} />
+                      <span style={{ color: THEME.pageText }}>M2d,mín</span>
+                    </div>
                   </div>
                   
                   {(() => {
@@ -860,6 +890,17 @@ export default function KappaCalc() {
                     const rangeY = Math.max(Math.abs(minY), Math.abs(maxY));
                     const scale = Math.max(rangeX, rangeY) * 1.1; // 10% de margem
                     
+                    // Função para calcular intervalo dinâmico baseado na escala
+                    const getScaleInterval = (scale: number) => {
+                      if (scale > 500) return 100;
+                      if (scale > 200) return 50;
+                      if (scale > 100) return 20;
+                      if (scale > 50) return 10;
+                      if (scale > 20) return 5;
+                      if (scale > 10) return 2;
+                      return 1;
+                    };
+                    
                     const scaleX = (x: number) => margin + (x + scale) * plotWidth / (2 * scale);
                     const scaleY = (y: number) => height - margin - (y + scale) * plotHeight / (2 * scale);
                     
@@ -870,11 +911,12 @@ export default function KappaCalc() {
                         
                         {/* Grid pontilhado */}
                         {(() => {
-                          // Gerar grid de 10 em 10 (excluindo o zero que são os eixos principais)
-                          const maxScale = Math.ceil(scale / 10) * 10;
+                          // Gerar grid com intervalo dinâmico
+                          const gridInterval = getScaleInterval(scale);
+                          const maxScale = Math.ceil(scale / gridInterval) * gridInterval;
                           const gridValues = [];
-                          for (let val = -maxScale; val <= maxScale; val += 10) {
-                            if (val !== 0) { // Excluir 0 porque são os eixos principais
+                          for (let val = -maxScale; val <= maxScale; val += gridInterval) {
+                            if (Math.abs(val) > 0.001) { // Excluir 0 porque são os eixos principais
                               gridValues.push(val);
                             }
                           }
@@ -916,10 +958,11 @@ export default function KappaCalc() {
                         
                         {/* Escalas X */}
                         {(() => {
-                          // Gerar escalas de 10 em 10
-                          const maxScale = Math.ceil(scale / 10) * 10; // Arredondar para múltiplo de 10
+                          // Gerar escalas com intervalo dinâmico
+                          const scaleInterval = getScaleInterval(scale);
+                          const maxScale = Math.ceil(scale / scaleInterval) * scaleInterval;
                           const scaleValues = [];
-                          for (let val = -maxScale; val <= maxScale; val += 10) {
+                          for (let val = -maxScale; val <= maxScale; val += scaleInterval) {
                             scaleValues.push(val);
                           }
                           return scaleValues.map(val => (
@@ -935,10 +978,11 @@ export default function KappaCalc() {
                         
                         {/* Escalas Y */}
                         {(() => {
-                          // Gerar escalas de 10 em 10
-                          const maxScale = Math.ceil(scale / 10) * 10; // Arredondar para múltiplo de 10
+                          // Gerar escalas com intervalo dinâmico
+                          const scaleInterval = getScaleInterval(scale);
+                          const maxScale = Math.ceil(scale / scaleInterval) * scaleInterval;
                           const scaleValues = [];
-                          for (let val = -maxScale; val <= maxScale; val += 10) {
+                          for (let val = -maxScale; val <= maxScale; val += scaleInterval) {
                             scaleValues.push(val);
                           }
                           return scaleValues.map(val => (
@@ -953,22 +997,36 @@ export default function KappaCalc() {
                         })()}
                         
                         {/* Pontos */}
-                        {pontosGrafico.map((ponto, index) => (
-                          <g key={index}>
-                            <circle 
-                              cx={scaleX(ponto.x)} 
-                              cy={scaleY(ponto.y)} 
-                              r={4} 
-                              fill="#3b82f6"
-                              stroke="white"
-                              strokeWidth={2}
-                              style={{ cursor: 'pointer' }}
-                            />
-                            <title>
-                              {`Altura: ${ponto.coord.toFixed(1)} cm\nMsd,y: ${ponto.x.toFixed(2)} kN·m\nMsd,x: ${ponto.y.toFixed(2)} kN·m`}
-                            </title>
-                          </g>
-                        ))}
+                        {pontosGrafico.map((ponto, index) => {
+                          // Calcular coeficiente de segurança para este ponto
+                          const gamma = calcularCoeficienteSeguranca({
+                            Msd_x: ponto.y, // Msd,x
+                            Msd_y: ponto.x, // Msd,y
+                            envoltoriaResistente: envoltoriaResistente.length > 0 ? envoltoriaResistente : undefined,
+                            M_min_xx: solve.Mdtotminxx,
+                            M_min_yy: solve.Mdtotminyy
+                          });
+                          
+                          const isInseguro = Number.isFinite(gamma) && gamma < 1.0;
+                          const corPonto = isInseguro ? '#ef4444' : '#22c55e';
+                          
+                          return (
+                            <g key={index}>
+                              <circle 
+                                cx={scaleX(ponto.x)} 
+                                cy={scaleY(ponto.y)} 
+                                r={4} 
+                                fill={corPonto}
+                                stroke="white"
+                                strokeWidth={2}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <title>
+                                {`Altura: ${ponto.coord.toFixed(1)} cm\nMsd,y: ${ponto.x.toFixed(2)} kN·m\nMsd,x: ${ponto.y.toFixed(2)} kN·m\nγ: ${Number.isFinite(gamma) ? (gamma === Infinity ? '∞' : gamma.toFixed(2)) : '—'}`}
+                              </title>
+                            </g>
+                          );
+                        })}
                         
                         {/* Envoltória Resistente */}
                         {envoltoriaResistente.length > 0 && (() => {
@@ -987,8 +1045,7 @@ export default function KappaCalc() {
                                 fill="#22c55e"
                                 fillOpacity={0.1}
                                 stroke="#22c55e"
-                                strokeWidth={2}
-                                strokeDasharray="5,5"
+                                strokeWidth={1.0}
                               />
                               {/* Pontos da envoltória */}
                               {envoltoriaResistente.map((ponto, index) => (
@@ -1005,6 +1062,102 @@ export default function KappaCalc() {
                                   </title>
                                 </circle>
                               ))}
+                            </g>
+                          );
+                        })()}
+                        
+                        {/* Envoltória Mínima de 1ª ordem (Elipse) */}
+                        {solve && solve.M1dminxx && solve.M1dminyy && (() => {
+                          const M1dminXX = solve.M1dminxx; // Semi-eixo em X (M1d,min,xx)
+                          const M1dminYY = solve.M1dminyy; // Semi-eixo em Y (M1d,min,yy)
+                          
+                          // Gerar pontos da elipse usando a equação paramétrica
+                          // x = M1d,min,yy × cos(θ)
+                          // y = M1d,min,xx × sin(θ)
+                          const numPontos = 100;
+                          const pontos = [];
+                          
+                          for (let i = 0; i <= numPontos; i++) {
+                            const theta = (i / numPontos) * 2 * Math.PI;
+                            const x = M1dminYY * Math.cos(theta); // Momento em torno de Y (no eixo X do gráfico)
+                            const y = M1dminXX * Math.sin(theta); // Momento em torno de X (no eixo Y do gráfico)
+                            pontos.push({ x, y });
+                          }
+                          
+                          const pathData = pontos.map((p, i) => 
+                            `${i === 0 ? 'M' : 'L'} ${scaleX(p.x)} ${scaleY(p.y)}`
+                          ).join(' ') + ' Z';
+                          
+                          return (
+                            <g>
+                              {/* Elipse da envoltória mínima */}
+                              <path
+                                d={pathData}
+                                fill="none"
+                                stroke="#f59e0b"
+                                strokeWidth={1.0}
+                              />
+                              {/* Pontos de referência nos eixos */}
+                              <circle cx={scaleX(M1dminYY)} cy={scaleY(0)} r={3} fill="#f59e0b" opacity={0.6}>
+                                <title>{`M1d,min,yy = ${M1dminYY.toFixed(2)} kN·m`}</title>
+                              </circle>
+                              <circle cx={scaleX(-M1dminYY)} cy={scaleY(0)} r={3} fill="#f59e0b" opacity={0.6}>
+                                <title>{`M1d,min,yy = ${M1dminYY.toFixed(2)} kN·m`}</title>
+                              </circle>
+                              <circle cx={scaleX(0)} cy={scaleY(M1dminXX)} r={3} fill="#f59e0b" opacity={0.6}>
+                                <title>{`M1d,min,xx = ${M1dminXX.toFixed(2)} kN·m`}</title>
+                              </circle>
+                              <circle cx={scaleX(0)} cy={scaleY(-M1dminXX)} r={3} fill="#f59e0b" opacity={0.6}>
+                                <title>{`M1d,min,xx = ${M1dminXX.toFixed(2)} kN·m`}</title>
+                              </circle>
+                            </g>
+                          );
+                        })()}
+                        
+                        {/* Envoltória Mínima Total com 2ª ordem (Elipse externa) */}
+                        {solve && solve.Mdtotminxx && solve.Mdtotminyy && (() => {
+                          const MdtotminXX = solve.Mdtotminxx; // Semi-eixo em X (Md,tot,min,xx)
+                          const MdtotminYY = solve.Mdtotminyy; // Semi-eixo em Y (Md,tot,min,yy)
+                          
+                          // Gerar pontos da elipse usando a equação paramétrica
+                          // x = Md,tot,min,yy × cos(θ)
+                          // y = Md,tot,min,xx × sin(θ)
+                          const numPontos = 100;
+                          const pontos = [];
+                          
+                          for (let i = 0; i <= numPontos; i++) {
+                            const theta = (i / numPontos) * 2 * Math.PI;
+                            const x = MdtotminYY * Math.cos(theta); // Momento em torno de Y (no eixo X do gráfico)
+                            const y = MdtotminXX * Math.sin(theta); // Momento em torno de X (no eixo Y do gráfico)
+                            pontos.push({ x, y });
+                          }
+                          
+                          const pathData = pontos.map((p, i) => 
+                            `${i === 0 ? 'M' : 'L'} ${scaleX(p.x)} ${scaleY(p.y)}`
+                          ).join(' ') + ' Z';
+                          
+                          return (
+                            <g>
+                              {/* Elipse da envoltória mínima total */}
+                              <path
+                                d={pathData}
+                                fill="none"
+                                stroke="#ff6b35"
+                                strokeWidth={1.0}
+                              />
+                              {/* Pontos de referência nos eixos */}
+                              <circle cx={scaleX(MdtotminYY)} cy={scaleY(0)} r={3} fill="#ff6b35" opacity={0.6}>
+                                <title>{`Md,tot,min,yy = ${MdtotminYY.toFixed(2)} kN·m`}</title>
+                              </circle>
+                              <circle cx={scaleX(-MdtotminYY)} cy={scaleY(0)} r={3} fill="#ff6b35" opacity={0.6}>
+                                <title>{`Md,tot,min,yy = ${MdtotminYY.toFixed(2)} kN·m`}</title>
+                              </circle>
+                              <circle cx={scaleX(0)} cy={scaleY(MdtotminXX)} r={3} fill="#ff6b35" opacity={0.6}>
+                                <title>{`Md,tot,min,xx = ${MdtotminXX.toFixed(2)} kN·m`}</title>
+                              </circle>
+                              <circle cx={scaleX(0)} cy={scaleY(-MdtotminXX)} r={3} fill="#ff6b35" opacity={0.6}>
+                                <title>{`Md,tot,min,xx = ${MdtotminXX.toFixed(2)} kN·m`}</title>
+                              </circle>
                             </g>
                           );
                         })()}
@@ -1264,6 +1417,7 @@ export default function KappaCalc() {
                 });
                 
                 return (
+                  <>
                   <table style={{
                     width: '100%',
                     maxWidth: 600,
@@ -1299,43 +1453,99 @@ export default function KappaCalc() {
                         }}>
                           Msd,y (kN·m)
                         </th>
+                        <th style={{
+                          padding: '12px 16px',
+                          textAlign: 'center',
+                          color: THEME.pageText,
+                          fontSize: 14,
+                          fontWeight: 600
+                        }}>
+                          CS
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {paresMomentos.map((par, index) => (
-                        <tr key={index} style={{
-                          background: index % 2 === 0 ? 'rgba(30, 41, 59, 0.3)' : 'transparent'
-                        }}>
-                          <td style={{
-                            padding: '10px 16px',
-                            textAlign: 'left',
-                            color: THEME.pageText,
-                            fontSize: 13
+                      {paresMomentos.map((par, index) => {
+                        // Calcular coeficiente de segurança
+                        const gamma = calcularCoeficienteSeguranca({
+                          Msd_x: par.MsdX,
+                          Msd_y: par.MsdY,
+                          envoltoriaResistente: envoltoriaResistente.length > 0 ? envoltoriaResistente : undefined,
+                          M_min_xx: solve.Mdtotminxx,
+                          M_min_yy: solve.Mdtotminyy
+                        });
+                        
+                        const isInseguro = Number.isFinite(gamma) && gamma < 1.0;
+                        const corGamma = isInseguro ? '#ef4444' : '#22c55e';
+                        
+                        return (
+                          <tr key={index} style={{
+                            background: index % 2 === 0 ? 'rgba(30, 41, 59, 0.3)' : 'transparent'
                           }}>
-                            {par.label}
-                          </td>
-                          <td style={{
-                            padding: '10px 16px',
-                            textAlign: 'center',
-                            color: THEME.pageText,
-                            fontSize: 13,
-                            fontWeight: Number.isFinite(par.MsdX) ? 'normal' : 'italic'
-                          }}>
-                            {Number.isFinite(par.MsdX) ? par.MsdX.toFixed(2) : '—'}
-                          </td>
-                          <td style={{
-                            padding: '10px 16px',
-                            textAlign: 'center',
-                            color: THEME.pageText,
-                            fontSize: 13,
-                            fontWeight: Number.isFinite(par.MsdY) ? 'normal' : 'italic'
-                          }}>
-                            {Number.isFinite(par.MsdY) ? par.MsdY.toFixed(2) : '—'}
-                          </td>
-                        </tr>
-                      ))}
+                            <td style={{
+                              padding: '10px 16px',
+                              textAlign: 'left',
+                              color: THEME.pageText,
+                              fontSize: 13
+                            }}>
+                              {par.label}
+                            </td>
+                            <td style={{
+                              padding: '10px 16px',
+                              textAlign: 'center',
+                              color: THEME.pageText,
+                              fontSize: 13,
+                              fontWeight: Number.isFinite(par.MsdX) ? 'normal' : 'italic'
+                            }}>
+                              {Number.isFinite(par.MsdX) ? par.MsdX.toFixed(2) : '—'}
+                            </td>
+                            <td style={{
+                              padding: '10px 16px',
+                              textAlign: 'center',
+                              color: THEME.pageText,
+                              fontSize: 13,
+                              fontWeight: Number.isFinite(par.MsdY) ? 'normal' : 'italic'
+                            }}>
+                              {Number.isFinite(par.MsdY) ? par.MsdY.toFixed(2) : '—'}
+                            </td>
+                            <td style={{
+                              padding: '10px 16px',
+                              textAlign: 'center',
+                              color: corGamma,
+                              fontSize: 13,
+                              fontWeight: 600
+                            }}>
+                              {Number.isFinite(gamma) 
+                                ? (gamma === Infinity ? '∞' : gamma.toFixed(2))
+                                : '—'}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
+                  
+                  <div style={{
+                    marginTop: 12,
+                    padding: '12px 16px',
+                    background: 'rgba(30, 41, 59, 0.3)',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    color: THEME.pageText
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>Coeficiente de Segurança (CS):</div>
+                    <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ color: '#ef4444', fontWeight: 600 }}>●</span>
+                        <span>CS &lt; 1.0 - Seção não resiste aos esforços</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ color: '#22c55e', fontWeight: 600 }}>●</span>
+                        <span>CS ≥ 1.0 - Seguro</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
                 );
               })()}
             </div>

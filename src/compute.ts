@@ -45,6 +45,9 @@ export type Inputs = {
     area: number;
     diametro: number;
   }>;
+  // Momentos resistentes da envoltória (kN·m)
+  MRdX?: number;
+  MRdY?: number;
 };
 
 export type SegmentoResultado = {
@@ -83,6 +86,8 @@ export type Outputs = {
   fa: number; // adim
   M1dminxx: number; // kN·m
   M1dminyy: number; // kN·m
+  Mdtotminxx: number; // kN·m (M2d,min direção X)
+  Mdtotminyy: number; // kN·m (M2d,min direção Y)
   segmentos_x: SegmentoResultado[]; // resultados por segmento direção X
   segmentos_y: SegmentoResultado[]; // resultados por segmento direção Y
   // Resultados globais de M2d
@@ -199,7 +204,8 @@ export function compute(inp: Inputs): Outputs {
       fa: fa,
       alfa_b_segmento: alfa_bx,
       dimensaoTransversal: b,
-      Nsd: Nsd
+      Nsd: Nsd,
+      MRd: inp.MRdX // Passa MRdX para direção X
     });
     
     return {
@@ -260,7 +266,8 @@ export function compute(inp: Inputs): Outputs {
       fa: fa,
       alfa_b_segmento: alfa_by,
       dimensaoTransversal: a,
-      Nsd: Nsd
+      Nsd: Nsd,
+      MRd: inp.MRdY // Passa MRdY para direção Y
     });
     
     return {
@@ -281,7 +288,8 @@ export function compute(inp: Inputs): Outputs {
     alfa_bx,
     MAx,
     b,
-    Nsd
+    Nsd,
+    MRdX: inp.MRdX // Passa MRdX da envoltória
   });
 
   // Calcular M2d global para direção Y
@@ -291,13 +299,51 @@ export function compute(inp: Inputs): Outputs {
     alfa_by,
     MAy,
     a,
-    Nsd
+    Nsd,
+    MRdY: inp.MRdY // Passa MRdY da envoltória
   });
+
+  // Calcular M2d,mín para direção X usando M1d,mín como momento de 1ª ordem
+  // MA = MB = M1d,mín para o cálculo de M2d,mín
+  const alfa_b_min_x = 0.6 + 0.4 * (M1dminxx / M1dminxx); // = 1.0 (momentos iguais)
+  const M2dmin_x = calcularM2d({
+    lambda: lamda_x,
+    fa,
+    alfa_b: alfa_b_min_x,
+    MA: M1dminxx,
+    dimensaoTransversal: b,
+    N: Nsd,
+    MRd: inp.MRdX
+  });
+
+  // Calcular M2d,mín para direção Y usando M1d,mín como momento de 1ª ordem
+  const alfa_b_min_y = 0.6 + 0.4 * (M1dminyy / M1dminyy); // = 1.0 (momentos iguais)
+  const M2dmin_y = calcularM2d({
+    lambda: lamda_y,
+    fa,
+    alfa_b: alfa_b_min_y,
+    MA: M1dminyy,
+    dimensaoTransversal: a,
+    N: Nsd,
+    MRd: inp.MRdY
+  });
+
+  // Calcular Md,tot,mín = M2d,mín (não é soma, é apenas M2d,mín)
+  const Mdtotminxx = M2dmin_x.convergiu ? M2dmin_x.M2d : 0;
+  const Mdtotminyy = M2dmin_y.convergiu ? M2dmin_y.M2d : 0;
+
+  console.log('📊 Momento Mínimo Total:');
+  console.log(`  M1d,min,xx = ${M1dminxx.toFixed(2)} kN·m`);
+  console.log(`  M2d,min,xx = ${M2dmin_x.convergiu ? M2dmin_x.M2d.toFixed(2) : 'N/A'} kN·m`);
+  console.log(`  Md,tot,min,xx = ${Mdtotminxx.toFixed(2)} kN·m`);
+  console.log(`  M1d,min,yy = ${M1dminyy.toFixed(2)} kN·m`);
+  console.log(`  M2d,min,yy = ${M2dmin_y.convergiu ? M2dmin_y.M2d.toFixed(2) : 'N/A'} kN·m`);
+  console.log(`  Md,tot,min,yy = ${Mdtotminyy.toFixed(2)} kN·m`);
 
   return { 
     fcd, fyd, Nsd, Msd_tx, Msd_bx, Msd_ty, Msd_by, Ix, As, ix, lamda_x, lamda_y, 
     MAx, MBx, MAy, MBy, alfa_bx, alfa_by, ex, erx, lamda1_x, lamda1_y, fa, 
-    M1dminxx, M1dminyy, segmentos_x, segmentos_y, resKappax, resKappay
+    M1dminxx, M1dminyy, Mdtotminxx, Mdtotminyy, segmentos_x, segmentos_y, resKappax, resKappay
   };
 }
 
@@ -326,8 +372,9 @@ export function calcularM2d(params: {
   MA: number;
   dimensaoTransversal: number; // a ou b conforme direção
   N: number; // Nsd ou Nk_superior conforme o caso
+  MRd?: number; // Momento resistente da envoltória (opcional)
 }): { M2d: number; kappa: number; convergiu: boolean } {
-  const { lambda, fa, alfa_b, MA, dimensaoTransversal, N } = params;
+  const { lambda, fa, alfa_b, MA, dimensaoTransversal, N, MRd } = params;
   
   // Se não há compressão, não há M2d
   if (N <= 0) {
@@ -344,6 +391,26 @@ export function calcularM2d(params: {
     return { M2d: 0, kappa: 0, convergiu: false };
   }
   
+  // Se MRd foi fornecido, calcular diretamente sem iteração
+  if (MRd !== undefined && MRd > 0) {
+    // κaprox = 32 × (1 + 5 × MRd,tot / (h × Nd)) × v
+    const kappa = 32 * fa * (1 + 5 * (MRd / base));
+    
+    const denom = 1 - (lambda * lambda * fa) / (120 * kappa);
+    if (!Number.isFinite(denom) || Math.abs(denom) < 1e-12) {
+      return { M2d: 0, kappa: 0, convergiu: false };
+    }
+    
+    const M2d = (alfa_b * MA) / denom;
+    
+    console.log(`✓ M2d calculado DIRETO com MRd=${MRd.toFixed(2)}: kappa=${kappa.toFixed(3)}, M2d=${M2d.toFixed(3)}`);
+    
+    return { M2d, kappa, convergiu: true };
+  }
+  
+  // Caso contrário, usar processo iterativo (fallback)
+  console.log(`⟲ Usando processo ITERATIVO (MRd não fornecido)`);
+  
   let kappa = (2 * lambda * lambda * fa) / 120; // primeira aproximação
   let M2d = 0;
   
@@ -359,15 +426,13 @@ export function calcularM2d(params: {
     const kappa_next = 32 * fa * (1 + 5 * (M_iter / base));
     const kappa_mix = (kappa + kappa_next) / 2;
     
-    // Log para debug
-    console.log(`Iteração ${i+1}: kappa = ${kappa_mix.toFixed(6)}, M2d = ${M_iter.toFixed(6)}`);
-    
     // Critério de convergência baseado em M2d: abs(M2d,k+1 - M2d,k)/abs(M2d,k) < 0.1%
     const err = Math.abs(M_iter - M2d) / Math.max(1e-12, Math.abs(M2d));
     kappa = kappa_mix;
     M2d = M_iter;
     
     if (err <= tol) {
+      console.log(`✓ Convergiu em ${i+1} iterações: kappa=${kappa.toFixed(3)}, M2d=${M2d.toFixed(3)}`);
       return { M2d, kappa, convergiu: true };
     }
   }
@@ -386,8 +451,9 @@ export function calcularM2dPorSegmento(params: {
   alfa_b_segmento: number;
   dimensaoTransversal: number; // a ou b conforme direção
   Nsd: number;
+  MRd?: number; // Momento resistente da envoltória (opcional)
 }): { M2d: number; kappa: number; convergiu: boolean } {
-  const { Nk_superior, Mbase, Mtop, lamda_segmento, fa, dimensaoTransversal } = params;
+  const { Nk_superior, Mbase, Mtop, lamda_segmento, fa, dimensaoTransversal, MRd } = params;
   
   // Momento MA e MB para o segmento
   const MA_seg = Math.max(Math.abs(Mbase), Math.abs(Mtop));
@@ -403,7 +469,8 @@ export function calcularM2dPorSegmento(params: {
     alfa_b: alfa_b_calc,
     MA: MA_seg,
     dimensaoTransversal,
-    N: Nk_superior
+    N: Nk_superior,
+    MRd // Passa MRd se fornecido
   });
   
   console.log(`[Segmento] M2d = ${resultado.M2d.toFixed(3)}, kappa = ${resultado.kappa.toFixed(3)}, convergiu = ${resultado.convergiu}`);
@@ -514,6 +581,7 @@ export type _KappaIterParams_x = {
   MAx: number;
   b: number;
   Nsd: number;
+  MRdX?: number; // Momento resistente da envoltória em X
 };
 export type _KappaIterOpts = { tol?: number; maxIter?: number; relax?: number };
 
@@ -524,7 +592,8 @@ export function resolverKappaMsd_x(p: _KappaIterParams_x, _opts: _KappaIterOpts 
     alfa_b: p.alfa_bx,
     MA: p.MAx,
     dimensaoTransversal: p.b,
-    N: p.Nsd
+    N: p.Nsd,
+    MRd: p.MRdX // Passa MRdX
   });
 
   console.log(`[Global X] M2d = ${resultado.M2d.toFixed(3)}, kappa = ${resultado.kappa.toFixed(3)}, convergiu = ${resultado.convergiu}`);
@@ -556,6 +625,7 @@ export type _KappaIterParams_y = {
   MAy: number;
   a: number;
   Nsd: number;
+  MRdY?: number; // Momento resistente da envoltória em Y
 };
 
 export function resolverKappaMsd_y(p: _KappaIterParams_y, _opts: _KappaIterOpts = {}) {
@@ -565,7 +635,8 @@ export function resolverKappaMsd_y(p: _KappaIterParams_y, _opts: _KappaIterOpts 
     alfa_b: p.alfa_by,
     MA: p.MAy,
     dimensaoTransversal: p.a,
-    N: p.Nsd
+    N: p.Nsd,
+    MRd: p.MRdY // Passa MRdY
   });
 
   console.log(`[Global Y] M2d = ${resultado.M2d.toFixed(3)}, kappa = ${resultado.kappa.toFixed(3)}, convergiu = ${resultado.convergiu}`);
@@ -587,4 +658,95 @@ export function resolverKappaMsd_y(p: _KappaIterParams_y, _opts: _KappaIterOpts 
     convergiu: true, 
     erro: null 
   };
+}
+
+/**
+ * Calcula o coeficiente de segurança para um par de momentos (Msd_x, Msd_y)
+ * em relação a uma envoltória resistente ou elipse de momento mínimo
+ */
+export function calcularCoeficienteSeguranca(params: {
+  Msd_x: number;
+  Msd_y: number;
+  envoltoriaResistente?: Array<{MRdX: number, MRdY: number}>;
+  M_min_xx?: number;
+  M_min_yy?: number;
+}): number {
+  const { Msd_x, Msd_y, envoltoriaResistente, M_min_xx, M_min_yy } = params;
+  
+  // Distância do ponto solicitante à origem
+  const d_solicitante = Math.sqrt(Msd_x * Msd_x + Msd_y * Msd_y);
+  
+  // Se não há solicitação, retornar infinito (totalmente seguro)
+  if (d_solicitante < 1e-6) {
+    return Infinity;
+  }
+  
+  // Tentar usar envoltória resistente primeiro
+  if (envoltoriaResistente && envoltoriaResistente.length > 0) {
+    // Ângulo do vetor de solicitação
+    // Note: MRdX está no eixo Y do gráfico, MRdY está no eixo X
+    const theta = Math.atan2(Msd_x, Msd_y);
+    
+    // Encontrar o ponto na envoltória mais próximo dessa direção
+    let melhorPonto = envoltoriaResistente[0];
+    let menorDiferencaAngulo = Infinity;
+    
+    for (const ponto of envoltoriaResistente) {
+      const anguloPonto = Math.atan2(ponto.MRdX, ponto.MRdY);
+      const diff = Math.abs(anguloPonto - theta);
+      const diffNormalizada = Math.min(diff, 2 * Math.PI - diff);
+      
+      if (diffNormalizada < menorDiferencaAngulo) {
+        menorDiferencaAngulo = diffNormalizada;
+        melhorPonto = ponto;
+      }
+    }
+    
+    // Interpolar entre pontos vizinhos para maior precisão
+    const idx = envoltoriaResistente.indexOf(melhorPonto);
+    const prevIdx = (idx - 1 + envoltoriaResistente.length) % envoltoriaResistente.length;
+    const nextIdx = (idx + 1) % envoltoriaResistente.length;
+    
+    const prev = envoltoriaResistente[prevIdx];
+    const next = envoltoriaResistente[nextIdx];
+    
+    const anguloPrev = Math.atan2(prev.MRdX, prev.MRdY);
+    const anguloAtual = Math.atan2(melhorPonto.MRdX, melhorPonto.MRdY);
+    const anguloNext = Math.atan2(next.MRdX, next.MRdY);
+    
+    let MRd_x, MRd_y;
+    
+    if (Math.abs(theta - anguloAtual) < 0.01) {
+      // Muito próximo do ponto, usar direto
+      MRd_x = melhorPonto.MRdX;
+      MRd_y = melhorPonto.MRdY;
+    } else if (theta > anguloAtual && theta < anguloNext) {
+      // Interpolar entre atual e próximo
+      const t = (theta - anguloAtual) / (anguloNext - anguloAtual);
+      MRd_x = melhorPonto.MRdX + t * (next.MRdX - melhorPonto.MRdX);
+      MRd_y = melhorPonto.MRdY + t * (next.MRdY - melhorPonto.MRdY);
+    } else {
+      // Interpolar entre anterior e atual
+      const t = (theta - anguloPrev) / (anguloAtual - anguloPrev);
+      MRd_x = prev.MRdX + t * (melhorPonto.MRdX - prev.MRdX);
+      MRd_y = prev.MRdY + t * (melhorPonto.MRdY - prev.MRdY);
+    }
+    
+    const d_resistente = Math.sqrt(MRd_x * MRd_x + MRd_y * MRd_y);
+    return d_resistente / d_solicitante;
+  }
+  
+  // Usar elipse de momento mínimo como fallback
+  if (M_min_xx && M_min_yy && M_min_xx > 0 && M_min_yy > 0) {
+    const razao = Math.pow(Msd_x / M_min_xx, 2) + Math.pow(Msd_y / M_min_yy, 2);
+    
+    if (razao < 1e-6) {
+      return Infinity;
+    }
+    
+    return 1 / Math.sqrt(razao);
+  }
+  
+  // Se não tem nenhuma envoltória, retornar NaN
+  return NaN;
 }

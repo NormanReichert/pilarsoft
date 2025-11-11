@@ -8,7 +8,7 @@ const TABS: { k: TabKey; t: string }[] = [
   { k: "discretizacao", t: "Discretização" },
   { k: "resultados", t: "Resultados" },
   { k: "diagrama", t: "Diagrama de interação" },
-  { k: "memoria", t: "Memória de cálculo" },
+  //{ k: "memoria", t: "Memória de cálculo" },
 ];
 
 function FixedHeader({
